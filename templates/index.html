@@ -4,74 +4,65 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Server Money</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .container {
-            text-align: center;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 3rem;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(10px);
-        }
-        .welcome-title {
-            font-size: 3rem;
-            color: #333;
-            margin-bottom: 1rem;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .welcome-subtitle {
-            font-size: 1.2rem;
-            color: #666;
-            margin-bottom: 2rem;
-        }
-        .fade-in {
-            animation: fadeIn 1s ease-in;
-        }
-        @keyframes fadeIn {
-            0% { opacity: 0; transform: translateY(30px); }
-            100% { opacity: 1; transform: translateY(0); }
-        }
-    </style>
 </head>
 <body>
-    <div id="app" class="container fade-in">
-        <h1 class="welcome-title" v-text="message"></h1>
-        <p class="welcome-subtitle" v-text="subtitle"></p>
-        <div v-if="showExtra">
-            <p v-text="extraMessage"></p>
+    <div id="app">
+        <!-- ヘッダーエリア -->
+        <div class="card header">
+            <div class="header-left">
+                <div class="hamburger-menu">☰</div>
+                <div class="project-selector" @click.stop="toggleAccountDropdown">
+                    <span v-if="showAccountDropdown">▼ {% raw %}{{ selectedAccount }}{% endraw %}</span>
+                    <span v-else>► {% raw %}{{ selectedAccount }}{% endraw %}</span>
+                    <div v-if="showAccountDropdown" class="account-dropdown" @click.stop>
+                        <ul>
+                            <li v-for="accountName in accountNames" :key="accountName" @click="selectAccount(accountName)">
+                                {% raw %}{{ accountName }}{% endraw %}
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="header-right">
+                <input type="text" class="search-box" placeholder="項目に関しての検索ができる">
+                <span class="search-icon">🔍</span>
+            </div>
+        </div>
+
+        <!-- 残高表示と取引履歴を統合したカード -->
+        <div class="card content-card"> 
+            <!-- 現在の残高エリア -->
+            <div class="balance-section"> <!-- balance-areaからbalance-sectionに変更し、スティッキー関連のスタイルはCSSで調整 -->
+                <div class="balance-label">現在の残高</div>
+                <div class="balance-amount">{% raw %}{{ formatCurrency(currentBalance) }}{% endraw %}</div>
+            </div>
+
+            <!-- 取引履歴テーブル -->
+            <div class="transaction-section"> <!-- transaction-areaからtransaction-sectionに変更 -->
+                <table class="transaction-table">
+                    <thead>
+                        <tr>
+                            <th @click="toggleDateSort" style="cursor: pointer;">日付 <span v-if="dateSortOrder === 'asc'">▲</span><span v-if="dateSortOrder === 'desc'">▼</span></th>
+                            <th>項目</th>
+                            <th>金額</th>
+                            <th>残高</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="transaction in sortedTransactions" :key="transaction.id">
+                            <td>{% raw %}{{ formatDateTime(transaction.date) }}{% endraw %}</td>
+                            <td>{% raw %}{{ transaction.item }}{% endraw %}</td>
+                            <td :class="getAmountCellClass(transaction.type)">{% raw %}{{ formatAmount(transaction.amount, transaction.type) }}{% endraw %}</td>
+                            <td>{% raw %}{{ formatCurrency(transaction.balance) }}{% endraw %}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <script>
-        const { createApp } = Vue;
-
-        createApp({
-            data() {
-                return {
-                    message: 'Welcome',
-                    subtitle: 'Server Money アプリケーションへようこそ！',
-                    extraMessage: 'Vueが正常に動作しています。',
-                    showExtra: false
-                }
-            },
-            mounted() {
-                // 1秒後に追加メッセージを表示
-                setTimeout(() => {
-                    this.showExtra = true;
-                }, 1000);
-            }
-        }).mount('#app');
-    </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
