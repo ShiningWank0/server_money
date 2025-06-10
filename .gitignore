@@ -11,3 +11,10 @@ wheels/
 uv.lock
 .DS_Store
 .python-version
+
+# Database files
+instance/
+*.db
+
+# Backup files
+backups/

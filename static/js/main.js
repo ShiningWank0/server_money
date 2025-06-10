@@ -5,27 +5,12 @@ const { createApp } = Vue;
 createApp({
     data() {
         return {
-            transactions: [
-                // デモデータに口座情報を追加し、データを拡充
-                { id: 1, account: 'メイン口座', date: '2025-06-10 09:00:00', item: '給与', type: 'income', amount: 300000, balance: 0 },
-                { id: 2, account: 'メイン口座', date: '2025-06-09', item: '家賃', type: 'expense', amount: 80000, balance: 0 },
-                { id: 3, account: 'メイン口座', date: '2025-06-08 14:15:00', item: 'スーパーマーケット', type: 'expense', amount: 5500, balance: 0 },
-                { id: 4, account: 'メイン口座', date: '2025-06-07', item: '書籍購入', type: 'expense', amount: 2400, balance: 0 },
-                { id: 5, account: 'メイン口座', date: '2025-06-05 10:00:00', item: 'フリマ売上', type: 'income', amount: 3000, balance: 0 },
-                { id: 6, account: 'メイン口座', date: '2025-06-04', item: '通信費', type: 'expense', amount: 6000, balance: 0 },
-                { id: 7, account: 'メイン口座', date: '2025-06-03 18:30:00', item: '外食', type: 'expense', amount: 1800, balance: 0 },
-
-                { id: 8, account: 'クレジットカード', date: '2025-06-10 10:00:00', item: 'オンラインショッピング', type: 'expense', amount: 12000, balance: 0 },
-                { id: 9, account: 'クレジットカード', date: '2025-06-08', item: 'カフェ', type: 'expense', amount: 800, balance: 0 },
-                { id: 10, account: 'クレジットカード', date: '2025-06-05 20:00:00', item: '映画', type: 'expense', amount: 1900, balance: 0 },
-
-                { id: 11, account: '予備費', date: '2025-06-01', item: '初期資金', type: 'income', amount: 50000, balance: 0 },
-                { id: 12, account: '予備費', date: '2025-06-06', item: '友人への貸付', type: 'expense', amount: 5000, balance: 0 },
-            ],
+            transactions: [], // APIから取得するため、初期値は空配列
             accountNames: ['メイン口座', 'クレジットカード', '予備費'],
             selectedAccount: 'メイン口座', // 初期選択口座
             dateSortOrder: 'desc',
-            showAccountDropdown: false // 口座選択ドロップダウンの表示状態
+            showAccountDropdown: false, // 口座選択ドロップダウンの表示状態
+            loading: true // データロード中のフラグ
         }
     },
     computed: {
@@ -108,49 +93,50 @@ createApp({
             if (projectSelector && !projectSelector.contains(event.target)) {
                 this.showAccountDropdown = false;
             }
+        },
+        async loadTransactions() {
+            try {
+                this.loading = true;
+                const response = await fetch('/api/transactions');
+                if (!response.ok) {
+                    throw new Error('データの取得に失敗しました');
+                }
+                this.transactions = await response.json();
+                console.log('Loaded transactions from API:', this.transactions);
+            } catch (error) {
+                console.error('取引データの読み込みエラー:', error);
+                alert('データの読み込みに失敗しました。');
+            } finally {
+                this.loading = false;
+            }
+        },
+        async backupToCSV() {
+            try {
+                const response = await fetch('/api/backup_csv');
+                if (!response.ok) {
+                    throw new Error('バックアップに失敗しました');
+                }
+                const result = await response.json();
+                alert(result.message);
+            } catch (error) {
+                console.error('CSVバックアップエラー:', error);
+                alert('バックアップに失敗しました。');
+            }
         }
     },
     mounted() {
         // ドロップダウンの外側をクリックした時に閉じる
         document.addEventListener('click', this.handleClickOutside);
+        // アプリ起動時にAPIからデータを読み込む
+        this.loadTransactions();
     },
     beforeUnmount() {
         // イベントリスナーをクリーンアップ
         document.removeEventListener('click', this.handleClickOutside);
     },
     created() {
-        console.log('Vue app created, initial transactions:', this.transactions);
+        console.log('Vue app created');
         console.log('Account names:', this.accountNames);
         console.log('Selected account:', this.selectedAccount);
-        
-        // 各口座ごとに残高を計算
-        const allTransactions = [];
-        this.accountNames.forEach(account => {
-            let runningBalance = 0;
-            const accountTransactions = this.transactions
-                .filter(tx => tx.account === account)
-                .sort((a, b) => { // 日付と時刻でソートして正しい順序で残高計算
-                    const dateA = new Date(a.date);
-                    const dateB = new Date(b.date);
-                    return dateA - dateB;
-                })
-                .map(tx => {
-                    if (tx.type === 'income') {
-                        runningBalance += tx.amount;
-                    } else {
-                        runningBalance -= tx.amount;
-                    }
-                    return { ...tx, balance: runningBalance };
-                });
-            allTransactions.push(...accountTransactions);
-        });
-        // 元のtransactions配列を、残高計算済みのものに置き換える
-        // ただし、この方法だと元のid順と変わってしまう可能性があるため、
-        // 本来はidをキーにしたオブジェクトなどで管理するか、
-        // mapで更新する際に元の配列の要素を直接更新する方が良いが、簡略化のためこうする
-        this.transactions = allTransactions.sort((a,b) => a.id - b.id);
-        
-        console.log('Final transactions with balance:', this.transactions);
-        console.log('Filtered transactions for selected account:', this.filteredTransactionsByAccount);
     }
 }).mount('#app');
