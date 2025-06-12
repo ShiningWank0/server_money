@@ -55,6 +55,8 @@
             <div class="side-menu">
                 <button class="menu-btn" @click="backupToCSV">CSVバックアップ</button>
                 <button class="menu-btn" @click="showGraphModal">残高推移グラフ表示</button>
+                <button class="menu-btn" @click="openRatioModal">収支比率グラフ</button>
+                <button class="menu-btn" @click="openItemizedModal">項目別収支グラフ</button>
                 <!-- 必要に応じて他のメニューも追加可能 -->
             </div>
         </div>
@@ -171,6 +173,7 @@
             </div>
         </div>
 
+        <!-- 残高推移グラフモーダル -->
         <div v-if="showGraph" class="modal-overlay" @click="hideGraphModal">
             <div class="modal-content graph-modal-content graph-modal-xlarge" @click.stop>
                 <h3 style="margin: 8px 0 12px 0; font-size: 1.3em;">残高推移グラフ</h3>
@@ -192,6 +195,46 @@
                   <canvas id="balanceChart"></canvas>
                 </div>
                 <button class="cancel-btn" @click="hideGraphModal" style="margin-top: 8px; padding: 6px 16px;">閉じる</button>
+            </div>
+        </div>
+
+        <!-- 収支比率グラフモーダル -->
+        <div v-if="showRatioModal" class="modal-overlay" @click="hideRatioModal">
+            <div class="modal-content" @click.stop style="max-width:600px; width:90vw;">
+                <h3 style="margin:8px 0 12px; font-size:1.3em;">収支比率グラフ</h3>
+                <div class="graph-filter-row" style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                  <label style="white-space:nowrap; font-size:0.95em;">資金項目：</label>
+                  <select v-model="ratioFundItem" @change="renderRatioChart">
+                    <option v-for="item in fundItemNames" :key="item" :value="item" v-text="item"></option>
+                  </select>
+                </div>
+                <div style="display:flex; justify-content:center; align-items:center; width:100%; height:400px;">
+                    <canvas id="ratioChart" style="max-width:400px; max-height:400px;"></canvas>
+                </div>
+                <button class="cancel-btn" @click="hideRatioModal" style="margin-top:8px; padding:6px 16px;">閉じる</button>
+            </div>
+        </div>
+        <!-- 項目別収支グラフモーダル -->
+        <div v-if="showItemizedModal" class="modal-overlay" @click="hideItemizedModal">
+            <div class="modal-content" @click.stop style="max-width:600px;">
+                <h3 style="margin:8px 0 12px; font-size:1.3em;">項目別収支グラフ</h3>
+                <div class="graph-filter-row">
+                  <label style="white-space:nowrap; font-size:0.95em;">資金項目：</label>
+                  <select v-model="itemizedFundItem" @change="renderItemizedCharts">
+                    <option v-for="item in fundItemNames" :key="item" :value="item" v-text="item"></option>
+                  </select>
+                </div>
+                <div style="display:flex; gap:16px; flex-wrap:wrap; justify-content:center;">
+                    <div style="width:45%; min-width:200px; height:300px;">
+                        <h4 style="text-align:center;">収入項目別</h4>
+                        <canvas id="incomeItemChart"></canvas>
+                    </div>
+                    <div style="width:45%; min-width:200px; height:300px;">
+                        <h4 style="text-align:center;">支出項目別</h4>
+                        <canvas id="expenseItemChart"></canvas>
+                    </div>
+                </div>
+                <button class="cancel-btn" @click="hideItemizedModal" style="margin-top:8px; padding:6px 16px;">閉じる</button>
             </div>
         </div>
         <style>

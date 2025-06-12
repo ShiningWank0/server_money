@@ -461,6 +461,7 @@ body {
 }
 
 .modal-content {
+    overflow: visible;
     background: white;
     border-radius: 15px;
     padding: 2rem;
@@ -468,7 +469,7 @@ body {
     max-width: 800px;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    /* allow dropdown to overflow */
 }
 
 .modal-content h3 {
@@ -943,4 +944,12 @@ body {
         font-size: 0.85rem; /* テーブルフォントを少し小さく */
         white-space: nowrap; /* セル内テキストの改行を防ぐ */
     }
+}
+
+/* グラフフィルタ用 select の調整 */
+.graph-filter-row select {
+    padding: 4px 8px;
+    min-width: 150px;
+    position: relative;
+    z-index: 1010;
 }

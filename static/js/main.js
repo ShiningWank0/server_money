@@ -29,8 +29,15 @@ createApp({
             },
             showMenu: false, // ハンバーガーメニューの表示状態
             showGraph: false, // グラフモーダルの表示状態
+            showRatioModal: false, // 収支比率モーダル表示状態
+            showItemizedModal: false, // 項目別収支モーダル表示状態
+            ratioChartInstance: null, // 収支比率チャートインスタンス
+            incomeItemChartInstance: null, // 収入項目別チャートインスタンス
+            expenseItemChartInstance: null, // 支出項目別チャートインスタンス
             graphFundItem: 'すべて', // グラフ用のフィルタ資金項目
-            graphDisplayUnit: 'day' // グラフ表示単位: 'day','month','year'
+            graphDisplayUnit: 'day', // グラフ表示単位: 'day','month','year'
+            ratioFundItem: 'すべて', // 収支比率用フィルタ資金項目
+            itemizedFundItem: 'すべて', // 項目別収支用フィルタ資金項目
         }
     },
     computed: {
@@ -243,6 +250,80 @@ createApp({
                 console.error('CSVバックアップエラー:', error);
                 alert('バックアップに失敗しました。');
             }
+        },
+        openRatioModal() {
+            this.showMenu = false;
+            this.showRatioModal = true;
+            this.$nextTick(() => { this.renderRatioChart(); });
+        },
+        hideRatioModal() { this.showRatioModal = false; if (this.ratioChartInstance) this.ratioChartInstance.destroy(); },
+        openItemizedModal() {
+            this.showMenu = false;
+            this.showItemizedModal = true;
+            this.$nextTick(() => { this.renderItemizedCharts(); });
+        },
+        hideItemizedModal() { this.showItemizedModal = false; if (this.incomeItemChartInstance) this.incomeItemChartInstance.destroy(); if (this.expenseItemChartInstance) this.expenseItemChartInstance.destroy(); },
+        async renderRatioChart() {
+            // 既存チャートを破棄
+            if (this.ratioChartInstance) {
+                this.ratioChartInstance.destroy();
+                this.ratioChartInstance = null;
+            }
+            const ctx = document.getElementById('ratioChart').getContext('2d');
+            // 全取引を再取得
+            let allTxs = [];
+            try {
+                const res = await fetch('/api/transactions');
+                allTxs = await res.json();
+            } catch (e) {
+                console.error('取引データ取得エラー:', e);
+            }
+            // 選択中の資金項目でフィルタ
+            const filteredTxs = allTxs.filter(t => this.ratioFundItem === 'すべて' || ((t.fundItem || t.account) === this.ratioFundItem));
+            const totalIncome = filteredTxs.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+            const totalExpense = filteredTxs.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+            const data = {
+                labels: ['収入','支出'],
+                datasets: [{ data:[totalIncome,totalExpense], backgroundColor:['#4caf50','#f44336'] }]
+            };
+            this.ratioChartInstance = new Chart(ctx, { type:'pie', data });
+        },
+        async renderItemizedCharts() {
+            // destroy existing
+            if (this.incomeItemChartInstance) { this.incomeItemChartInstance.destroy(); this.incomeItemChartInstance = null; }
+            if (this.expenseItemChartInstance) { this.expenseItemChartInstance.destroy(); this.expenseItemChartInstance = null; }
+            // fetch fresh transactions
+            let allTxs = [];
+            try {
+                const res = await fetch('/api/transactions'); allTxs = await res.json();
+            } catch (e) { console.error('取引データ取得エラー:', e); }
+            // filter by selected fund item
+            const filtered = allTxs.filter(t => this.itemizedFundItem === 'すべて' || ((t.fundItem||t.account) === this.itemizedFundItem));
+            // aggregate by item
+            const incomeItems = {}, expenseItems = {};
+            filtered.forEach(t => {
+                const key = t.item || '未指定';
+                if (t.type==='income') incomeItems[key] = (incomeItems[key]||0) + t.amount;
+                else expenseItems[key] = (expenseItems[key]||0) + t.amount;
+            });
+            // sort entries by descending value
+            const inEntries = Object.entries(incomeItems).sort((a,b) => b[1] - a[1]);
+            const exEntries = Object.entries(expenseItems).sort((a,b) => b[1] - a[1]);
+            const inLabels = inEntries.map(([key]) => key);
+            const inData = inEntries.map(([_, val]) => val);
+            const exLabels = exEntries.map(([key]) => key);
+            const exData = exEntries.map(([_, val]) => val);
+            // draw charts without legend
+            const ctxIn = document.getElementById('incomeItemChart').getContext('2d');
+            this.incomeItemChartInstance = new Chart(ctxIn, {
+                type:'doughnut', data:{ labels:inLabels, datasets:[{ data:inData, backgroundColor:inLabels.map((_,i)=>`hsl(${i*40%360},70%,50%)`)}]},
+                options:{ plugins:{ legend:{ display:false } } }
+            });
+            const ctxEx = document.getElementById('expenseItemChart').getContext('2d');
+            this.expenseItemChartInstance = new Chart(ctxEx, {
+                type:'doughnut', data:{ labels:exLabels, datasets:[{ data:exData, backgroundColor:exLabels.map((_,i)=>`hsl(${i*40%360},70%,50%)`)}]},
+                options:{ plugins:{ legend:{ display:false } } }
+            });
         },
         onSearchInput() {
             // 検索はフロントエンドで行うため、すぐに結果を更新
