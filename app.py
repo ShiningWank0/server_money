@@ -373,6 +373,53 @@ def delete_transaction(transaction_id):
         db.session.rollback()
         return jsonify({'error': f'取引の削除に失敗しました: {str(e)}'}), 500
 
+@app.route("/api/balance_history")
+def get_balance_history():
+    """残高推移データを取得するAPI"""
+    try:
+        # 全ての取引を日付順で取得
+        transactions = Transaction.query.order_by(Transaction.date, Transaction.id).all()
+        
+        if not transactions:
+            return jsonify({'accounts': [], 'dates': [], 'balances': {}})
+        
+        # 口座ごとに残高推移を計算
+        account_balances = {}
+        all_dates = set()
+        
+        for transaction in transactions:
+            account = transaction.account
+            date_str = transaction.date.strftime('%Y-%m-%d')
+            
+            if account not in account_balances:
+                account_balances[account] = {}
+            
+            account_balances[account][date_str] = transaction.balance
+            all_dates.add(date_str)
+        
+        # 日付を昇順でソート
+        sorted_dates = sorted(list(all_dates))
+        
+        # 各口座の残高データを日付順に整理（データがない日は前の残高を使用）
+        result_balances = {}
+        for account in account_balances:
+            result_balances[account] = []
+            last_balance = 0
+            
+            for date in sorted_dates:
+                if date in account_balances[account]:
+                    last_balance = account_balances[account][date]
+                result_balances[account].append(last_balance)
+        
+        return jsonify({
+            'accounts': list(account_balances.keys()),
+            'dates': sorted_dates,
+            'balances': result_balances
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'残高履歴の取得に失敗しました: {str(e)}'}), 500
+
 if __name__ == "__main__":
     with app.app_context():
         # データベーステーブルを作成

@@ -7,7 +7,8 @@ createApp({
         return {
             transactions: [],
             fundItemNames: [],
-            itemNames: [], // 項目名リスト
+            itemNames: // 項目名リスト
+            [],
             selectedFundItem: 'すべて',
             dateSortOrder: 'desc',
             showAccountDropdown: false,
@@ -15,9 +16,9 @@ createApp({
             searchQuery: '',
             searchTimeout: null,
             showAddTransactionModal: false,
-            showFundItemDropdown: false,  // 資金項目ドロップダウンの表示状態
-            isEditMode: false,           // 追加: 編集モードかどうか
-            editTransactionId: null,     // 追加: 編集中の取引ID
+            showFundItemDropdown: false, // 資金項目ドロップダウンの表示状態
+            isEditMode: false, // 追加: 編集モードかどうか
+            editTransactionId: null, // 追加: 編集中の取引ID
             newTransaction: {
                 fundItem: '',
                 date: '',
@@ -28,13 +29,15 @@ createApp({
             },
             showMenu: false, // ハンバーガーメニューの表示状態
             showGraph: false, // グラフモーダルの表示状態
+            graphFundItem: 'すべて', // グラフ用のフィルタ資金項目
+            graphDisplayUnit: 'day' // グラフ表示単位: 'day','month','year'
         }
     },
     computed: {
         // 検索結果に基づいてフィルタリングされた取引
         filteredTransactions() {
             let filtered = this.transactions;
-            
+
             // 資金項目によるフィルタリング
             if (this.selectedFundItem !== 'すべて') {
                 filtered = filtered.filter(tx => {
@@ -42,7 +45,7 @@ createApp({
                     return fundItem === this.selectedFundItem;
                 });
             }
-            
+
             // 検索クエリによるフィルタリング
             if (this.searchQuery.trim()) {
                 const query = this.searchQuery.trim().toLowerCase();
@@ -55,37 +58,37 @@ createApp({
                     );
                 });
             }
-            
+
             return filtered;
         },
         // 検索・フィルタリング結果に基づいて残高を再計算する
         transactionsWithRecalculatedBalance() {
             const transactions = [...this.filteredTransactions];
-            
+
             if (transactions.length === 0) {
                 return [];
             }
-            
+
             // 日付順にソート（古い順）
             transactions.sort((a, b) => {
                 const dateA = new Date(a.date);
                 const dateB = new Date(b.date);
                 return dateA - dateB;
             });
-            
+
             // 残高を0から再計算（検索結果だけの推移として計算）
             let runningBalance = 0;
             const recalculatedTransactions = transactions.map((tx) => {
                 // 現在の取引を適用
                 const currentAmount = tx.type === 'income' ? tx.amount : -tx.amount;
                 runningBalance += currentAmount;
-                
+
                 return {
                     ...tx,
                     balance: runningBalance
                 };
             });
-            
+
             return recalculatedTransactions;
         },
         currentBalance() {
@@ -157,7 +160,7 @@ createApp({
             if (projectSelector && !projectSelector.contains(event.target)) {
                 this.showAccountDropdown = false;
             }
-            
+
             // 資金項目ドロップダウンのクリック外処理
             const fundItemGroup = document.querySelector('.funditem-input-group');
             if (fundItemGroup && !fundItemGroup.contains(event.target)) {
@@ -171,7 +174,7 @@ createApp({
                 const params = new URLSearchParams();
                 // 検索とフィルタリングはフロントエンドで行うため、全データを取得
                 if (this.selectedFundItem !== 'すべて') {
-                    params.append('account', this.selectedFundItem);  // バックエンドは'account'パラメータを期待
+                    params.append('account', this.selectedFundItem); // バックエンドは'account'パラメータを期待
                 }
                 const url = `/api/transactions${params.toString() ? '?' + params.toString() : ''}`;
                 const response = await fetch(url);
@@ -316,23 +319,23 @@ createApp({
         // 金額欄の入力変換イベント
         onAmountInput(event) {
             let value = event.target.value;
-            
+
             // 数字以外の文字を除去
             value = this.filterNumericOnly(value);
-            
+
             // 全角数字を半角数字に変換
             value = this.convertToHalfWidth(value);
-            
+
             // カンマを除去して純粋な数字のみにする
             const numericValue = value.replace(/[,，]/g, '');
-            
+
             // 値を更新
             this.newTransaction.amount = numericValue;
-            
+
             // 入力欄の値も同期（カーソル位置を保持）
             const cursorPos = event.target.selectionStart;
             event.target.value = numericValue;
-            
+
             // カーソル位置を調整（フィルタリングで文字が削除された場合に対応）
             const newPos = Math.min(cursorPos, numericValue.length);
             setTimeout(() => {
@@ -343,33 +346,33 @@ createApp({
         onAmountKeydown(event) {
             const key = event.key;
             const code = event.code;
-            
+
             // 許可するキー
             const allowedKeys = [
                 'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
                 'Home', 'End', 'Tab', 'Escape', 'Enter'
             ];
-            
+
             // Ctrl/Cmd + キーの組み合わせを許可（コピー、ペースト、全選択など）
             if (event.ctrlKey || event.metaKey) {
                 return true;
             }
-            
+
             // 許可されたキーの場合は通す
             if (allowedKeys.includes(key)) {
                 return true;
             }
-            
+
             // 半角数字
             if (key >= '0' && key <= '9') {
                 return true;
             }
-            
+
             // 全角数字
             if (key >= '０' && key <= '９') {
                 return true;
             }
-            
+
             // それ以外のキーは無効
             event.preventDefault();
             return false;
@@ -377,27 +380,27 @@ createApp({
         // 金額欄のペーストイベント
         onAmountPaste(event) {
             event.preventDefault();
-            
+
             // クリップボードからデータを取得
             const pastedData = (event.clipboardData || window.clipboardData).getData('text');
-            
+
             // 数字以外を除去して処理
             const filteredData = this.filterNumericOnly(pastedData);
             const convertedData = this.convertToHalfWidth(filteredData);
             const numericData = convertedData.replace(/[,，]/g, '');
-            
+
             // 現在の入力欄の値と組み合わせる
             const input = event.target;
             const start = input.selectionStart;
             const end = input.selectionEnd;
             const currentValue = this.newTransaction.amount || '';
-            
+
             // 新しい値を作成
             const newValue = currentValue.substring(0, start) + numericData + currentValue.substring(end);
-            
+
             // 値を更新
             this.newTransaction.amount = newValue;
-            
+
             // カーソル位置を調整
             setTimeout(() => {
                 const newPos = start + numericData.length;
@@ -414,7 +417,7 @@ createApp({
         async addTransaction() {
             try {
                 // バリデーション（時刻は除外）
-                if (!this.newTransaction.fundItem || !this.newTransaction.date || 
+                if (!this.newTransaction.fundItem || !this.newTransaction.date ||
                     !this.newTransaction.item || !this.newTransaction.amount) {
                     alert('日付、資金項目、項目、金額は必須項目です。');
                     return;
@@ -464,7 +467,7 @@ createApp({
 
                 const result = await response.json();
                 alert(result.message);
-                
+
                 // モーダルを閉じて、データを再読み込み
                 this.hideAddModal();
                 await this.loadFundItems(); // 新しい資金項目が追加された可能性があるため
@@ -485,7 +488,7 @@ createApp({
         },
         async updateTransaction() {
             try {
-                if (!this.newTransaction.fundItem || !this.newTransaction.date || 
+                if (!this.newTransaction.fundItem || !this.newTransaction.date ||
                     !this.newTransaction.item || !this.newTransaction.amount) {
                     alert('日付、資金項目、項目、金額は必須項目です。');
                     return;
@@ -550,9 +553,101 @@ createApp({
         showGraphModal() {
             this.showGraph = true;
             this.showMenu = false;
+            this.$nextTick(() => {
+                this.renderBalanceChart();
+            });
         },
         hideGraphModal() {
             this.showGraph = false;
+        },
+        renderBalanceChart() {
+            // 既存のグラフがあれば破棄
+            if (this._balanceChartInstance) {
+                this._balanceChartInstance.destroy();
+            }
+            // グラフの親要素サイズにcanvasを合わせる
+            const wrapper = document.querySelector('.graph-scroll-wrapper');
+            const canvas = document.getElementById('balanceChart');
+            if (wrapper && canvas) {
+                // スクロールバー分を考慮して少し余裕を持たせる
+                const w = Math.max(wrapper.clientWidth - 15, 800); // 最小幅を800pxに維持、余白を減らす
+                const h = Math.max(wrapper.clientHeight - 15, 350); // 最小高さを350pxに拡大、余白を減らす
+                canvas.width = w;
+                canvas.height = h;
+                canvas.style.width = w + 'px';
+                canvas.style.height = h + 'px';
+            }
+            // 資金項目フィルタリングと残高再計算
+            let txsRaw;
+            if (this.graphFundItem && this.graphFundItem !== 'すべて') {
+                txsRaw = this.transactions.filter(tx => (tx.fundItem || tx.account) === this.graphFundItem);
+            } else {
+                txsRaw = [...this.transactions];
+            }
+            // 日付順にソート（古い順）
+            txsRaw.sort((a, b) => new Date(a.date) - new Date(b.date));
+            // 残高を再計算
+            let runBal = 0;
+            const txs = txsRaw.map(tx => {
+                runBal += (tx.type === 'income' ? tx.amount : -tx.amount);
+                return { ...tx, balance: runBal };
+            });
+            // データを表示単位で集計
+            const grouped = {};
+            txs.forEach(tx => {
+                const d = new Date(tx.date);
+                let key;
+                if (this.graphDisplayUnit === 'month') {
+                    key = `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}`;
+                } else if (this.graphDisplayUnit === 'year') {
+                    key = `${d.getFullYear()}`;
+                } else {
+                    key = `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)}`;
+                }
+                // 同じキーの場合は最新バランスを上書き
+                grouped[key] = tx.balance;
+            });
+            const labels = Object.keys(grouped);
+            const data = labels.map(label => grouped[label]);
+             const ctx = canvas.getContext('2d');
+             this._balanceChartInstance = new Chart(ctx, {
+                 type: 'line',
+                 data: {
+                     labels: labels,
+                     datasets: [{
+                         label: '残高',
+                         data: data,
+                         borderColor: 'rgba(54, 162, 235, 1)',
+                         backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                         fill: true,
+                         tension: 0.2,
+                         pointRadius: 2
+                     }]
+                 },
+                 options: {
+                     responsive: false,
+                     maintainAspectRatio: false,
+                     plugins: {
+                         legend: { display: false },
+                         title: { display: false }
+                     },
+                     scales: {
+                         x: { 
+                             title: { display: true, text: this.graphDisplayUnit==='month' ? '年月' : this.graphDisplayUnit==='year' ? '年' : '日付' },
+                             grid: { display: true }
+                         },
+                         y: { 
+                             title: { display: true, text: '残高(円)' }, 
+                             beginAtZero: true,
+                             grid: { display: true }
+                         }
+                     },
+                     interaction: {
+                         intersect: false,
+                         mode: 'index'
+                     }
+                 }
+             });
         },
     },
     mounted() {
