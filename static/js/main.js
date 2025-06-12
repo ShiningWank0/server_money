@@ -16,6 +16,8 @@ createApp({
             searchTimeout: null,
             showAddTransactionModal: false,
             showFundItemDropdown: false,  // 資金項目ドロップダウンの表示状態
+            isEditMode: false,           // 追加: 編集モードかどうか
+            editTransactionId: null,     // 追加: 編集中の取引ID
             newTransaction: {
                 fundItem: '',
                 date: '',
@@ -242,9 +244,35 @@ createApp({
             this.newTransaction.amount = '';
             this.showAddTransactionModal = true;
         },
+        async onEditTransaction(transaction) {
+            // 編集用にモーダルを開く
+            await this.loadFundItems();
+            this.isEditMode = true;
+            this.editTransactionId = transaction.id;
+            // 日付・時刻分割
+            let date = '', time = '';
+            if (transaction.date.includes(' ')) {
+                [date, time] = transaction.date.split(' ');
+                time = time.slice(0,5); // HH:MM
+            } else {
+                date = transaction.date;
+                time = '';
+            }
+            this.newTransaction = {
+                fundItem: transaction.fundItem || transaction.account,
+                date: date,
+                time: time,
+                item: transaction.item,
+                type: transaction.type,
+                amount: transaction.amount.toString()
+            };
+            this.showAddTransactionModal = true;
+        },
         hideAddModal() {
             this.showAddTransactionModal = false;
-            this.showFundItemDropdown = false;  // モーダルを閉じるときにドロップダウンも閉じる
+            this.showFundItemDropdown = false;
+            this.isEditMode = false;
+            this.editTransactionId = null;
         },
         // 資金項目ドロップダウンの表示/非表示を切り替え
         toggleFundItemDropdown() {
@@ -429,6 +457,75 @@ createApp({
 
             } catch (error) {
                 console.error('取引追加エラー:', error);
+                alert(`エラー: ${error.message}`);
+            }
+        },
+        async addOrUpdateTransaction() {
+            // 追加・編集を分岐
+            if (this.isEditMode) {
+                await this.updateTransaction();
+            } else {
+                await this.addTransaction();
+            }
+        },
+        async updateTransaction() {
+            try {
+                if (!this.newTransaction.fundItem || !this.newTransaction.date || 
+                    !this.newTransaction.item || !this.newTransaction.amount) {
+                    alert('日付、資金項目、項目、金額は必須項目です。');
+                    return;
+                }
+                const convertedAmount = this.convertToHalfWidth(this.newTransaction.amount);
+                const amount = parseInt(convertedAmount.replace(/[^\d]/g, ''));
+                if (isNaN(amount) || amount <= 0) {
+                    alert('金額は正の数値を入力してください。');
+                    return;
+                }
+                const transactionData = {
+                    account: this.newTransaction.fundItem,
+                    date: this.newTransaction.date,
+                    time: this.newTransaction.time,
+                    item: this.newTransaction.item,
+                    type: this.newTransaction.type,
+                    amount: amount
+                };
+                const response = await fetch(`/api/transactions/${this.editTransactionId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(transactionData)
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '取引の編集に失敗しました');
+                }
+                const result = await response.json();
+                alert(result.message);
+                this.hideAddModal();
+                await this.loadFundItems();
+                await this.loadTransactions();
+            } catch (error) {
+                console.error('取引編集エラー:', error);
+                alert(`エラー: ${error.message}`);
+            }
+        },
+        async onDeleteTransaction() {
+            if (!this.isEditMode || !this.editTransactionId) return;
+            if (!confirm('本当にこの取引を削除しますか？')) return;
+            try {
+                const response = await fetch(`/api/transactions/${this.editTransactionId}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '削除に失敗しました');
+                }
+                const result = await response.json();
+                alert(result.message);
+                this.hideAddModal();
+                await this.loadFundItems();
+                await this.loadTransactions();
+            } catch (error) {
+                console.error('取引削除エラー:', error);
                 alert(`エラー: ${error.message}`);
             }
         }

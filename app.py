@@ -235,6 +235,98 @@ def init_demo_data():
     db.session.commit()
     print(f"デモデータ {len(all_transactions)} 件をデータベースに追加しました。")
 
+@app.route("/api/transactions/<int:transaction_id>", methods=['PUT', 'PATCH'])
+def update_transaction(transaction_id):
+    """既存取引の編集API"""
+    try:
+        data = request.get_json()
+        # 必須フィールドの検証
+        required_fields = ['account', 'date', 'item', 'type', 'amount']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({'error': f'{field}は必須項目です'}), 400
+
+        # 日付の解析
+        try:
+            if 'time' in data and data['time'].strip():
+                date_str = f"{data['date']} {data['time']}"
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d %H:%M')
+            else:
+                date_obj = datetime.strptime(data['date'], '%Y-%m-%d')
+        except ValueError:
+            return jsonify({'error': '日付形式が正しくありません'}), 400
+
+        # 金額の検証
+        try:
+            amount = int(data['amount'])
+            if amount <= 0:
+                return jsonify({'error': '金額は正の数値である必要があります'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': '金額は数値である必要があります'}), 400
+
+        # タイプの検証
+        if data['type'] not in ['income', 'expense']:
+            return jsonify({'error': 'typeは"income"または"expense"である必要があります'}), 400
+
+        # 既存トランザクション取得
+        transaction = Transaction.query.get(transaction_id)
+        if not transaction:
+            return jsonify({'error': '該当取引が見つかりません'}), 404
+
+        # 変更前の情報
+        old_account = transaction.account
+        old_date = transaction.date
+
+        # トランザクション内容を更新
+        transaction.account = data['account']
+        transaction.date = date_obj
+        transaction.item = data['item']
+        transaction.type = data['type']
+        transaction.amount = amount
+        db.session.commit()
+
+        # 残高の再計算（同じ口座の全取引、日付昇順）
+        for account in set([old_account, data['account']]):
+            txs = Transaction.query.filter_by(account=account).order_by(Transaction.date, Transaction.id).all()
+            running_balance = 0
+            for tx in txs:
+                if tx.type == 'income':
+                    running_balance += tx.amount
+                else:
+                    running_balance -= tx.amount
+                tx.balance = running_balance
+            db.session.commit()
+
+        return jsonify({'message': '取引が更新されました', 'transaction': transaction.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'取引の更新に失敗しました: {str(e)}'}), 500
+
+@app.route("/api/transactions/<int:transaction_id>", methods=['DELETE'])
+def delete_transaction(transaction_id):
+    """取引の削除API"""
+    try:
+        transaction = Transaction.query.get(transaction_id)
+        if not transaction:
+            return jsonify({'error': '該当取引が見つかりません'}), 404
+        account = transaction.account
+        db.session.delete(transaction)
+        db.session.commit()
+        # 残高の再計算（同じ口座の全取引、日付昇順）
+        txs = Transaction.query.filter_by(account=account).order_by(Transaction.date, Transaction.id).all()
+        running_balance = 0
+        for tx in txs:
+            if tx.type == 'income':
+                running_balance += tx.amount
+            else:
+                running_balance -= tx.amount
+            tx.balance = running_balance
+        db.session.commit()
+        return jsonify({'message': '取引が削除されました'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'取引の削除に失敗しました: {str(e)}'}), 500
+
 if __name__ == "__main__":
     with app.app_context():
         # データベーステーブルを作成
