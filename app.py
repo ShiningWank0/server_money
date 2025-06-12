@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import csv
@@ -170,9 +170,20 @@ def backup_to_csv():
         
         writer.writeheader()
         for transaction in transactions:
-            writer.writerow(transaction.to_dict())
+            # CSVには必要なフィールドのみを含める
+            row_data = {
+                'id': transaction.id,
+                'account': transaction.account,
+                'date': transaction.date.strftime('%Y-%m-%d %H:%M:%S') if transaction.date.time() != datetime.min.time() else transaction.date.strftime('%Y-%m-%d'),
+                'item': transaction.item,
+                'type': transaction.type,
+                'amount': transaction.amount,
+                'balance': transaction.balance
+            }
+            writer.writerow(row_data)
     
-    return jsonify({'message': f'バックアップが完了しました: {csv_filename}', 'filename': csv_filename})
+    # ファイルをダウンロードとして返す
+    return send_file(csv_filename, mimetype='text/csv', as_attachment=True, download_name=os.path.basename(csv_filename))
 
 def init_demo_data():
     """デモデータをデータベースに初期投入"""

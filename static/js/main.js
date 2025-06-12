@@ -221,8 +221,21 @@ createApp({
                 if (!response.ok) {
                     throw new Error('バックアップに失敗しました');
                 }
-                const result = await response.json();
-                alert(result.message);
+                const blob = await response.blob();
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = 'transactions_backup.csv';
+                if (contentDisposition && contentDisposition.includes('filename=')) {
+                    filename = contentDisposition.split('filename=')[1].split(';')[0].replace(/"/g, '').trim();
+                }
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                this.showMenu = false;
             } catch (error) {
                 console.error('CSVバックアップエラー:', error);
                 alert('バックアップに失敗しました。');
