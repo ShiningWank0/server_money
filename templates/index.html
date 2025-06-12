@@ -11,23 +11,31 @@
     <div id="app">
         <!-- ヘッダーエリア -->
         <div class="card header">
-            <div class="header-left">
-                <div class="hamburger-menu">☰</div>
-                <div class="project-selector" @click.stop="toggleAccountDropdown">
-                    <span v-if="showAccountDropdown">▼ {% raw %}{{ selectedAccount }}{% endraw %}</span>
-                    <span v-else>► {% raw %}{{ selectedAccount }}{% endraw %}</span>
-                    <div v-if="showAccountDropdown" class="account-dropdown" @click.stop>
-                        <ul>
-                            <li v-for="accountName in accountNames" :key="accountName" @click="selectAccount(accountName)">
-                                {% raw %}{{ accountName }}{% endraw %}
-                            </li>
-                        </ul>
+            <div class="header-top">
+                <div class="header-left">
+                    <div class="hamburger-menu">☰</div>
+                    <div class="project-selector" @click.stop="toggleAccountDropdown">
+                        <span v-if="showAccountDropdown">▼ <span v-text="selectedFundItem"></span></span>
+                        <span v-else>► <span v-text="selectedFundItem"></span></span>
+                        <div v-if="showAccountDropdown" class="account-dropdown" @click.stop>
+                            <ul>
+                                <li v-for="fundItemName in fundItemNames" :key="fundItemName" @click="selectFundItem(fundItemName)">
+                                    <span v-text="fundItemName"></span>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
+                <div class="header-add-btn">
+                    <button class="add-btn" @click="showAddModal" title="新しい取引を追加">+</button>
+                </div>
             </div>
-            <div class="header-right">
-                <input type="text" class="search-box" placeholder="項目に関しての検索ができる">
-                <span class="search-icon">🔍</span>
+            <div class="header-search">
+                <div class="search-container">
+                    <input type="text" class="search-box" placeholder="資金使用項目に対する検索が可能" v-model="searchQuery" @input="onSearchInput">
+                    <span class="search-icon">🔍</span>
+                </div>
+                <button class="add-btn add-btn-desktop" @click="showAddModal" title="新しい取引を追加">+</button>
             </div>
         </div>
 
@@ -45,6 +53,7 @@
                     <thead>
                         <tr>
                             <th @click="toggleDateSort" style="cursor: pointer;">日付 <span v-if="dateSortOrder === 'asc'">▲</span><span v-if="dateSortOrder === 'desc'">▼</span></th>
+                            <th v-if="selectedFundItem === 'すべて'">資金項目</th>
                             <th>項目</th>
                             <th>金額</th>
                             <th>残高</th>
@@ -52,13 +61,85 @@
                     </thead>
                     <tbody>
                         <tr v-for="transaction in sortedTransactions" :key="transaction.id">
-                            <td>{% raw %}{{ formatDateTime(transaction.date) }}{% endraw %}</td>
-                            <td>{% raw %}{{ transaction.item }}{% endraw %}</td>
-                            <td :class="getAmountCellClass(transaction.type)">{% raw %}{{ formatAmount(transaction.amount, transaction.type) }}{% endraw %}</td>
-                            <td>{% raw %}{{ formatCurrency(transaction.balance) }}{% endraw %}</td>
+                            <td v-text="formatDateTime(transaction.date)"></td>
+                            <td v-if="selectedFundItem === 'すべて'" v-text="transaction.fundItem || transaction.account"></td>
+                            <td v-text="transaction.item"></td>
+                            <td :class="getAmountCellClass(transaction.type)" v-text="formatAmount(transaction.amount, transaction.type)"></td>
+                            <td v-text="formatCurrency(transaction.balance)"></td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- 新規取引追加モーダル -->
+        <div v-if="showAddTransactionModal" class="modal-overlay" @click="hideAddModal">
+            <div class="modal-content" @click.stop>
+                <h3>新しい取引を追加</h3>
+                <form @submit.prevent="addTransaction">
+                    <div class="form-row">
+                        <label>日付:</label>
+                        <input type="date" v-model="newTransaction.date" required>
+                    </div>
+                    <div class="form-row">
+                        <label>時刻 (任意):</label>
+                        <input type="time" v-model="newTransaction.time">
+                    </div>
+                    <div class="form-row">
+                        <label>資金項目:</label>
+                        <div class="funditem-input-group" @click.stop>
+                            <input type="text" 
+                                   v-model="newTransaction.fundItem" 
+                                   placeholder="資金項目名を入力または選択" 
+                                   required 
+                                   @click="onFundItemInputClick"
+                                   @focus="showFundItemDropdown = true">
+                            <button type="button" class="dropdown-toggle-btn" @click="toggleFundItemDropdown">▼</button>
+                            <div v-if="showFundItemDropdown" class="funditem-dropdown">
+                                <ul>
+                                    <li v-for="item in fundItemNames.filter(name => name !== 'すべて')" 
+                                        :key="item" 
+                                        @click="selectFundItemInModal(item)"
+                                        :class="{ 'selected': item === newTransaction.fundItem }">
+                                        <span v-text="item"></span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <small v-if="isNewFundItem(newTransaction.fundItem)" class="new-account-notice">{% raw %}新しい資金項目「{{ newTransaction.fundItem }}」が作成されます{% endraw %}</small>
+                    </div>
+                    <div class="form-row">
+                        <label>種類:</label>
+                        <div class="radio-group">
+                            <label><input type="radio" v-model="newTransaction.type" value="income"> 収入</label>
+                            <label><input type="radio" v-model="newTransaction.type" value="expense"> 支出</label>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label>項目:</label>
+                        <div class="item-input-group">
+                            <input type="text" v-model="newTransaction.item" placeholder="例: 給与、食費、交通費" required list="item-list">
+                            <datalist id="item-list">
+                                <option v-for="item in itemNames" :key="item" :value="item">
+                            </datalist>
+                        </div>
+                        <small v-if="isNewItem(newTransaction.item)" class="new-account-notice">{% raw %}新しい項目「{{ newTransaction.item }}」が作成されます{% endraw %}</small>
+                    </div>
+                    <div class="form-row">
+                        <label>金額:</label>
+                        <input type="text" v-model="newTransaction.amount" placeholder="円" required 
+                               :class="getAmountInputClass(newTransaction.type)"
+                               @input="onAmountInput"
+                               @keydown="onAmountKeydown"
+                               @paste="onAmountPaste"
+                               inputmode="numeric"
+                               autocomplete="off">
+                    </div>
+                    <div class="modal-buttons">
+                        <button type="button" class="cancel-btn" @click="hideAddModal">キャンセル</button>
+                        <button type="submit" class="ok-btn">OK</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
