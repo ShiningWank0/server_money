@@ -25,7 +25,9 @@ createApp({
                 item: '',
                 type: 'expense',
                 amount: ''
-            }
+            },
+            showMenu: false, // ハンバーガーメニューの表示状態
+            showGraph: false, // グラフモーダルの表示状態
         }
     },
     computed: {
@@ -528,7 +530,17 @@ createApp({
                 console.error('取引削除エラー:', error);
                 alert(`エラー: ${error.message}`);
             }
-        }
+        },
+        toggleMenu() {
+            this.showMenu = !this.showMenu;
+        },
+        showGraphModal() {
+            this.showGraph = true;
+            this.showMenu = false;
+        },
+        hideGraphModal() {
+            this.showGraph = false;
+        },
     },
     mounted() {
         // ドロップダウンの外側をクリックした時に閉じる

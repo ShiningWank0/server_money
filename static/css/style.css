@@ -47,7 +47,7 @@ body {
 
 .header-top {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
 }
 
@@ -63,15 +63,15 @@ body {
 @media (min-width: 769px) {
     .header {
         flex-direction: row; /* デスクトップでは横並び */
-        justify-content: space-between;
+        justify-content: flex-start;
         align-items: center;
         gap: 2rem;
     }
-    
     .header-top {
-        display: flex; 
-        align-items: center; 
-        flex-grow: 0; /* Prevent this from taking more space than needed */
+        justify-content: flex-start;
+    }
+    .header-left {
+        width: 100%;
     }
     
     .header-search {
@@ -105,14 +105,125 @@ body {
 
 .header-left {
     display: flex;
+    align-items: stretch;
+    gap: 0;
+    height: 48px;
+    width: 100%;
+}
+
+.hamburger-menu {
+    cursor: pointer;
+    font-size: 2rem;
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 48px;
+    min-width: 40px;
+    margin-right: 0;
+    padding: 0;
+    box-sizing: border-box;
+    border-radius: 8px;
+    background: none;
+    border: none;
+    transition: background 0.15s;
+    position: relative;
+}
+
+.hamburger-menu:hover {
+    background: #f0f0f0;
+}
+
+/* 通常時: 縦三本線 */
+.vertical-menu-icon {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 24px;
+    gap: 6px;
+    transition: opacity 0.2s;
+}
+
+.vertical-menu-icon span {
+    display: block;
+    width: 5px;
+    height: 22px;
+    background: #333;
+    border-radius: 3px;
+    transition: background 0.2s, opacity 0.2s;
+}
+
+.hamburger-menu:hover .vertical-menu-icon span {
+    background: #666;
+}
+
+/* サイドメニュー表示時: 横三本線（長い棒）を横並びで表示 */
+.hamburger-menu.menu-open .vertical-menu-icon {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.hamburger-menu.menu-open .horizontal-menu-icon {
+    display: flex;
+}
+
+.horizontal-menu-icon {
+    display: none;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 40px;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.horizontal-menu-icon span {
+    display: block;
+    width: 22px;
+    height: 5px;
+    background: #333;
+    border-radius: 3px;
+    transition: background 0.2s;
+}
+
+.hamburger-menu.menu-open .horizontal-menu-icon span {
+    background: #666;
+}
+
+.project-selector {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: 0;
+    padding-left: 0;
+    justify-content: flex-start;
+}
+
+.header-left {
+    display: flex;
     align-items: center;
     gap: 1rem;
 }
 
 .hamburger-menu {
     cursor: pointer;
-    font-size: 1.5rem;
+    font-size: 1.7rem;
     color: #333;
+    display: flex;
+    align-items: center;
+    height: 40px;
+    width: 40px;
+    justify-content: center;
+    margin-right: 0.5rem;
+    /* 高さをproject-selectorと揃える */
+    box-sizing: border-box;
 }
 
 .project-selector {
@@ -589,7 +700,195 @@ body {
     background-color: #5a6fd8;
 }
 
-/* 既存のitem-input-groupスタイルも改善 */
+/* サイドメニューのオーバーレイ */
+.side-menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.2);
+    z-index: 2000;
+    display: flex;
+    align-items: stretch;
+}
+
+/* サイドメニュー本体 */
+.side-menu {
+    width: 260px;
+    background: #fff;
+    height: 100vh;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.15);
+    padding: 2rem 1rem 1rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    animation: slideInLeft 0.2s;
+}
+
+@keyframes slideInLeft {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+}
+
+.menu-btn {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    background: #f5f5f5;
+    color: #333;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+    transition: background 0.2s;
+}
+.menu-btn:hover {
+    background: #e0e0e0;
+}
+
+/* 縦三本線メニューアイコン */
+.vertical-menu-icon {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 24px;
+    gap: 6px;
+}
+
+.vertical-menu-icon span {
+    display: block;
+    width: 5px;
+    height: 22px;
+    background: #333;
+    border-radius: 3px;
+    transition: background 0.2s;
+}
+
+.hamburger-menu:hover .vertical-menu-icon span {
+    background: #666;
+}
+
+/* 通常時: Material Iconsのmenu（横三本線） */
+.hamburger-menu .material-icons {
+    font-size: 2.2rem;
+    color: #333;
+    line-height: 1;
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+/* サイドメニュー表示時: 90度回転 */
+.hamburger-menu.menu-open .material-icons {
+    transform: rotate(90deg);
+}
+
+/* chevron（三角）アイコンのアニメーション */
+.chevron {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    border-right: 0.22em solid #333;
+    border-bottom: 0.22em solid #333;
+    transform: rotate(45deg); /* ▶（右向き） */
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+/* サイドメニュー表示時: 90度回転 */
+.hamburger-menu.menu-open .material-icons {
+    transform: rotate(90deg);
+}
+
+/* chevron（三角）アイコンのアニメーション */
+.chevron {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    border-right: 0.22em solid #333;
+    border-bottom: 0.22em solid #333;
+    transform: rotate(45deg); /* ▶（右向き） */
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+/* サイドメニュー表示時: 90度回転 */
+.hamburger-menu.menu-open .material-icons {
+    transform: rotate(90deg);
+}
+
+/* chevron（三角）アイコンのアニメーション */
+.chevron {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    border-right: 0.22em solid #333;
+    border-bottom: 0.22em solid #333;
+    transform: rotate(45deg); /* ▶（右向き） */
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+/* サイドメニュー表示時: 90度回転 */
+.hamburger-menu.menu-open .material-icons {
+    transform: rotate(90deg);
+}
+
+/* chevron（三角）アイコンのアニメーション */
+.chevron {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    border-right: 0.22em solid #333;
+    border-bottom: 0.22em solid #333;
+    transform: rotate(45deg); /* ▶（右向き） */
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+/* サイドメニュー表示時: 90度回転 */
+.hamburger-menu.menu-open .material-icons {
+    transform: rotate(90deg);
+}
+
+/* chevron-anim（三角Unicode用アニメーション） */
+.chevron-anim {
+    display: inline-block;
+    transition: none;
+}
+.chevron-anim > span {
+    display: inline-block;
+    font-size: 1.1em;
+    line-height: 1;
+    vertical-align: middle;
+    transition: none;
+}
+
+/* ▼に切り替わるときのアニメーション */
+.chevron-anim .chevron-down-enter-active {
+    animation: chevron-down-anim 0.35s ease-in-out;
+}
+@keyframes chevron-down-anim {
+    0% {
+        transform: rotate(0deg) scale(1);
+        opacity: 0.7;
+    }
+    60% {
+        transform: rotate(60deg) scale(1.1);
+        opacity: 1;
+    }
+    100% {
+        transform: rotate(0deg) scale(1);
+        opacity: 1;
+    }
+}
+
+/* ▶に戻るときのアニメーション */
+.chevron-anim .chevron-up-leave-active {
+    animation: chevron-up-anim 0.28s ease-in-out;
+}
+@keyframes chevron-up-anim {
+    0% {
+        transform: rotate(0deg) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: rotate(-60deg) scale(0.95);
+        opacity: 0.7;
+    }
+}
 
 /* レスポンシブ対応 */
 @media (max-width: 768px) {

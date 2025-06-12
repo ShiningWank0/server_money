@@ -6,6 +6,8 @@
     <title>Server Money</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Google Material IconsのCDNをheadに追加 -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
     <div id="app">
@@ -13,10 +15,17 @@
         <div class="card header">
             <div class="header-top">
                 <div class="header-left">
-                    <div class="hamburger-menu">☰</div>
+                    <div class="hamburger-menu" :class="{ 'menu-open': showMenu }" @click="toggleMenu">
+                        <span class="material-icons">menu</span>
+                    </div>
                     <div class="project-selector" @click.stop="toggleAccountDropdown">
-                        <span v-if="showAccountDropdown">▼ <span v-text="selectedFundItem"></span></span>
-                        <span v-else>► <span v-text="selectedFundItem"></span></span>
+                        <span class="chevron-anim">
+                          <transition name="chevron-down">
+                            <span v-if="showAccountDropdown" key="down">▼</span>
+                            <span v-else key="up">▶</span>
+                          </transition>
+                        </span>
+                        <span v-text="selectedFundItem"></span>
                         <div v-if="showAccountDropdown" class="account-dropdown" @click.stop>
                             <ul>
                                 <li v-for="fundItemName in fundItemNames" :key="fundItemName" @click="selectFundItem(fundItemName)">
@@ -36,6 +45,15 @@
                     <span class="search-icon">🔍</span>
                 </div>
                 <button class="add-btn add-btn-desktop" @click="showAddModal" title="新しい取引を追加">+</button>
+            </div>
+        </div>
+
+        <!-- メニューのドロワー -->
+        <div v-if="showMenu" class="side-menu-overlay" @click.self="toggleMenu">
+            <div class="side-menu">
+                <button class="menu-btn" @click="backupToCSV">CSVバックアップ</button>
+                <button class="menu-btn" @click="showGraphModal">グラフ表示</button>
+                <!-- 必要に応じて他のメニューも追加可能 -->
             </div>
         </div>
 
@@ -148,6 +166,15 @@
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- グラフ表示用の簡易モーダル（今はダミー） -->
+        <div v-if="showGraph" class="modal-overlay" @click="hideGraphModal">
+            <div class="modal-content" @click.stop>
+                <h3>グラフ表示（サンプル）</h3>
+                <p>ここにグラフを表示します（今はダミー）。</p>
+                <button class="cancel-btn" @click="hideGraphModal">閉じる</button>
             </div>
         </div>
     </div>
