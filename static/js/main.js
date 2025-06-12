@@ -27,49 +27,73 @@ createApp({
         }
     },
     computed: {
-        filteredTransactionsByFundItem() {
-            if (this.selectedFundItem === 'すべて') {
-                return this.transactions;
-            }
-            return this.transactions.filter(tx => {
-                const fundItem = tx.fundItem || tx.account;
-                return fundItem === this.selectedFundItem;
-            });
-        },
-        currentBalance() {
-            if (this.selectedFundItem === 'すべて') {
-                // 全資金項目の最新残高の合計を計算
-                const fundItemBalances = {};
-                this.transactions.forEach(tx => {
-                    const key = tx.fundItem || tx.account;
-                    if (!fundItemBalances[key] || 
-                        new Date(tx.date) > new Date(fundItemBalances[key].date)) {
-                        fundItemBalances[key] = tx;
-                    }
+        // 検索結果に基づいてフィルタリングされた取引
+        filteredTransactions() {
+            let filtered = this.transactions;
+            
+            // 資金項目によるフィルタリング
+            if (this.selectedFundItem !== 'すべて') {
+                filtered = filtered.filter(tx => {
+                    const fundItem = tx.fundItem || tx.account;
+                    return fundItem === this.selectedFundItem;
                 });
-                return Object.values(fundItemBalances).reduce((sum, tx) => sum + tx.balance, 0);
             }
             
-            const fundItemTransactions = this.filteredTransactionsByFundItem;
-            if (fundItemTransactions.length === 0) {
+            // 検索クエリによるフィルタリング
+            if (this.searchQuery.trim()) {
+                const query = this.searchQuery.trim().toLowerCase();
+                filtered = filtered.filter(tx => {
+                    return (
+                        tx.item.toLowerCase().includes(query) ||
+                        (tx.fundItem || tx.account || '').toLowerCase().includes(query) ||
+                        tx.date.includes(query) ||
+                        tx.amount.toString().includes(query)
+                    );
+                });
+            }
+            
+            return filtered;
+        },
+        // 検索・フィルタリング結果に基づいて残高を再計算する
+        transactionsWithRecalculatedBalance() {
+            const transactions = [...this.filteredTransactions];
+            
+            if (transactions.length === 0) {
+                return [];
+            }
+            
+            // 日付順にソート（古い順）
+            transactions.sort((a, b) => {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                return dateA - dateB;
+            });
+            
+            // 残高を0から再計算（検索結果だけの推移として計算）
+            let runningBalance = 0;
+            const recalculatedTransactions = transactions.map((tx) => {
+                // 現在の取引を適用
+                const currentAmount = tx.type === 'income' ? tx.amount : -tx.amount;
+                runningBalance += currentAmount;
+                
+                return {
+                    ...tx,
+                    balance: runningBalance
+                };
+            });
+            
+            return recalculatedTransactions;
+        },
+        currentBalance() {
+            const recalculatedTransactions = this.transactionsWithRecalculatedBalance;
+            if (recalculatedTransactions.length === 0) {
                 return 0;
             }
-            const sortedForBalance = [...fundItemTransactions].sort((a, b) => {
-                const dateA = new Date(a.date.split(' ')[0]); // 日付部分のみで比較
-                const dateB = new Date(b.date.split(' ')[0]);
-                if (dateA - dateB !== 0) {
-                    return dateA - dateB;
-                }
-                 // 同じ日付の場合はIDでソートして安定性を確保 (時刻を考慮しない場合)
-                // もし時刻まで厳密に考慮してその日の最終残高とするなら、date全体でソート
-                const fullDateA = new Date(a.date);
-                const fullDateB = new Date(b.date);
-                return fullDateA - fullDateB; 
-            });
-            return sortedForBalance[sortedForBalance.length - 1].balance;
+            // 最新の残高を返す（日付順ソート済みなので最後の要素）
+            return recalculatedTransactions[recalculatedTransactions.length - 1].balance;
         },
         sortedTransactions() {
-            const transactionsToDisplay = [...this.filteredTransactionsByFundItem];
+            const transactionsToDisplay = [...this.transactionsWithRecalculatedBalance];
             transactionsToDisplay.sort((a, b) => {
                 const dateA = new Date(a.date);
                 const dateB = new Date(b.date);
@@ -141,9 +165,7 @@ createApp({
                 this.loading = true;
                 // 検索パラメータを構築
                 const params = new URLSearchParams();
-                if (this.searchQuery.trim()) {
-                    params.append('search', this.searchQuery.trim());
-                }
+                // 検索とフィルタリングはフロントエンドで行うため、全データを取得
                 if (this.selectedFundItem !== 'すべて') {
                     params.append('account', this.selectedFundItem);  // バックエンドは'account'パラメータを期待
                 }
@@ -203,13 +225,8 @@ createApp({
             }
         },
         onSearchInput() {
-            // デバウンス: 入力停止から300ms後に検索実行
-            if (this.searchTimeout) {
-                clearTimeout(this.searchTimeout);
-            }
-            this.searchTimeout = setTimeout(() => {
-                this.loadTransactions();
-            }, 300);
+            // 検索はフロントエンドで行うため、すぐに結果を更新
+            // デバウンスは不要（計算処理が軽いため）
         },
         async showAddModal() {
             // 常に最新の資金項目リストを取得
