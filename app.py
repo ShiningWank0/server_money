@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import csv
 import os
+import glob
 
 app = Flask(__name__)
 
@@ -13,6 +14,27 @@ db = SQLAlchemy(app)
 
 # Base fund items that should always be available
 BASE_FUND_ITEMS = ['メイン口座', 'クレジットカード', '予備費']
+
+def cleanup_old_backups(backup_dir, max_files=3):
+    """バックアップディレクトリ内の古いCSVファイルを削除し、最新のmax_files件のみを保持する"""
+    # バックアップファイルのパターン
+    pattern = os.path.join(backup_dir, 'transactions_backup_*.csv')
+    backup_files = glob.glob(pattern)
+    
+    if len(backup_files) <= max_files:
+        return  # ファイル数が上限以下なら何もしない
+    
+    # ファイルを更新日時でソート（新しい順）
+    backup_files.sort(key=os.path.getmtime, reverse=True)
+    
+    # 古いファイルを削除
+    files_to_delete = backup_files[max_files:]
+    for file_path in files_to_delete:
+        try:
+            os.remove(file_path)
+            print(f"古いバックアップファイルを削除しました: {file_path}")
+        except OSError as e:
+            print(f"バックアップファイルの削除に失敗しました: {file_path}, エラー: {e}")
 
 # Transactionモデル
 class Transaction(db.Model):
@@ -160,9 +182,20 @@ def backup_to_csv():
     if not os.path.exists(backup_dir):
         os.makedirs(backup_dir)
     
-    # CSVファイル名（タイムスタンプ付き）
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    # 古いバックアップファイルを先にクリーンアップ（最新3件のみ保持）
+    cleanup_old_backups(backup_dir, max_files=2)  # 新しいファイルを作成するので2件に制限
+    
+    # CSVファイル名（タイムスタンプ付き、マイクロ秒も含めて重複を防ぐ）
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
     csv_filename = f'{backup_dir}/transactions_backup_{timestamp}.csv'
+    
+    # 既に同じファイル名が存在する場合は、追加のタイムスタンプを付ける
+    counter = 1
+    original_filename = csv_filename
+    while os.path.exists(csv_filename):
+        base_name = original_filename.rsplit('.', 1)[0]
+        csv_filename = f'{base_name}_{counter}.csv'
+        counter += 1
     
     with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
         fieldnames = ['id', 'account', 'date', 'item', 'type', 'amount', 'balance']
@@ -181,6 +214,8 @@ def backup_to_csv():
                 'balance': transaction.balance
             }
             writer.writerow(row_data)
+    
+    print(f"CSVバックアップファイルを作成しました: {csv_filename}")
     
     # ファイルをダウンロードとして返す
     return send_file(csv_filename, mimetype='text/csv', as_attachment=True, download_name=os.path.basename(csv_filename))
