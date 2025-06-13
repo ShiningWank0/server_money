@@ -352,10 +352,10 @@ def get_balance_history():
     except Exception as e:
         return jsonify({'error': f'残高履歴の取得に失敗しました: {str(e)}'}), 500
 
+# モデル定義の後にテーブルを自動作成
+with app.app_context():
+    db.create_all()
+
 if __name__ == "__main__":
-    with app.app_context():
-        # データベーステーブルを作成
-        db.create_all()
-    
     # 0.0.0.0に設定することで、ローカルホストから以外のアクセスも受け付ける
     app.run(host='0.0.0.0', port=4000, debug=True)
