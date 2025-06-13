@@ -8,9 +8,29 @@ import glob
 app = Flask(__name__)
 
 # データベース設定
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///money_tracker.db'
+basedir = os.path.abspath(os.path.dirname(__file__))
+# 絶対パスで指定
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'money_tracker.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+# デバッグ用：データベースファイルのパスを出力
+print(f"データベースファイルのパス: {os.path.join(basedir, 'money_tracker.db')}")
+
+# テーブル作成を確実に行う関数
+def init_db():
+    with app.app_context():
+        try:
+            # テーブルが存在するかチェック
+            db.engine.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='transaction';").fetchone()
+            print("テーブル 'transaction' は既に存在します")
+        except:
+            print("テーブル 'transaction' が存在しません。作成します...")
+            db.create_all()
+            print("テーブルが作成されました")
+
+# アプリケーション初期化時にテーブル作成
+init_db()
 
 def cleanup_old_backups(backup_dir, max_files=3):
     """バックアップディレクトリ内の古いCSVファイルを削除し、最新のmax_files件のみを保持する"""
@@ -55,6 +75,19 @@ class Transaction(db.Model):
             'balance': self.balance
         }
 
+# テーブル存在確認とテーブル作成のヘルパー関数
+def ensure_table_exists():
+    """テーブルが存在しない場合に作成する"""
+    try:
+        # テーブルの存在確認（簡単なクエリを実行）
+        db.session.execute("SELECT 1 FROM transaction LIMIT 1")
+    except Exception:
+        # テーブルが存在しない場合は作成
+        print("テーブルが存在しないため、作成します...")
+        with app.app_context():
+            db.create_all()
+        print("テーブルを作成しました")
+
 @app.route("/")
 def hello_world():
     return render_template('index.html')
@@ -62,6 +95,7 @@ def hello_world():
 @app.route("/api/accounts")
 def get_accounts():
     """データベースから口座名（資金項目名）のリストを取得するAPI"""
+    ensure_table_exists()
     # Get distinct accounts from transactions in the database
     db_accounts_query = db.session.query(Transaction.account.distinct()).all()
     # Use a set for efficient addition and uniqueness
@@ -75,6 +109,7 @@ def get_accounts():
 @app.route("/api/items")
 def get_items():
     """データベースから項目名（item）のリストを取得するAPI"""
+    ensure_table_exists()
     items = db.session.query(Transaction.item.distinct()).order_by(Transaction.item).all()
     item_list = [item[0] for item in items]
     return jsonify(item_list)
@@ -82,6 +117,7 @@ def get_items():
 @app.route("/api/transactions")
 def get_transactions():
     """取引履歴をJSON形式で返すAPI"""
+    ensure_table_exists()
     search_query = request.args.get('search', '').strip()
     account = request.args.get('account', '').strip()
     
@@ -351,18 +387,6 @@ def get_balance_history():
         
     except Exception as e:
         return jsonify({'error': f'残高履歴の取得に失敗しました: {str(e)}'}), 500
-
-# 起動時(各ワーカーの最初のリクエスト時)にテーブルを作成
-@app.before_first_request
-def initialize_database():
-    try:
-        db.create_all()
-    except Exception:
-        pass
-
-# # モデル定義の後にテーブルを自動作成
-# with app.app_context():
-#     db.create_all()
 
 if __name__ == "__main__":
     # 0.0.0.0に設定することで、ローカルホストから以外のアクセスも受け付ける
