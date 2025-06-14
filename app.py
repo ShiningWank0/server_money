@@ -385,6 +385,57 @@ def backup_to_csv():
     # ファイルをダウンロードとして返す
     return send_file(csv_filename, mimetype='text/csv', as_attachment=True, download_name=os.path.basename(csv_filename))
 
+@app.route("/api/download_log")
+def download_log():
+    """最新のログファイルをダウンロードするAPI"""
+    app.logger.info("ログファイルダウンロードを開始しています")
+    
+    try:
+        # ログディレクトリの確認
+        log_dir = 'logs'
+        if not os.path.exists(log_dir):
+            app.logger.warning("ログディレクトリが存在しません")
+            return jsonify({'error': 'ログファイルが見つかりません'}), 404
+        
+        # ログファイルの検索パターン
+        log_pattern = os.path.join(log_dir, 'money_tracker.log*')
+        log_files = glob.glob(log_pattern)
+        
+        if not log_files:
+            app.logger.warning("ログファイルが見つかりません")
+            return jsonify({'error': 'ログファイルが見つかりません'}), 404
+        
+        # 最新のログファイルを取得（ファイル名でソート）
+        # money_tracker.logが最新、money_tracker.log.1が次に新しい
+        log_files.sort(key=lambda x: (
+            0 if x.endswith('money_tracker.log') else int(x.split('.')[-1])
+        ))
+        
+        latest_log_file = log_files[0]
+        
+        # ファイルの存在確認
+        if not os.path.exists(latest_log_file):
+            app.logger.error(f"ログファイルが存在しません: {latest_log_file}")
+            return jsonify({'error': 'ログファイルにアクセスできません'}), 500
+        
+        # ダウンロード用のファイル名を生成（タイムスタンプ付き）
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        download_name = f'money_tracker_log_{timestamp}.log'
+        
+        app.logger.info(f"ログファイルをダウンロード提供: {latest_log_file}")
+        
+        # ファイルをダウンロードとして返す
+        return send_file(
+            latest_log_file, 
+            mimetype='text/plain', 
+            as_attachment=True, 
+            download_name=download_name
+        )
+        
+    except Exception as e:
+        app.logger.error(f"ログファイルダウンロードでエラーが発生しました: {str(e)}", exc_info=True)
+        return jsonify({'error': f'ログファイルダウンロードに失敗しました: {str(e)}'}), 500
+
 @app.route("/api/transactions/<int:transaction_id>", methods=['PUT', 'PATCH'])
 def update_transaction(transaction_id):
     """既存取引の編集API"""
