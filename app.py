@@ -1,6 +1,8 @@
 from flask import Flask, render_template, jsonify, request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from waitress import serve
+from sqlalchemy import text, inspect
 import csv
 import os
 import glob
@@ -8,50 +10,15 @@ import glob
 app = Flask(__name__)
 
 # データベース設定
-basedir = os.path.abspath(os.path.dirname(__file__))
-# 絶対パスで指定
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'money_tracker.db')
+# 相対パスが推奨
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///money_tracker.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db = SQLAlchemy(app)
 
-# デバッグ用：データベースファイルのパスを出力
-print(f"データベースファイルのパス: {os.path.join(basedir, 'money_tracker.db')}")
-
-# テーブル作成を確実に行う関数
-def init_db():
-    with app.app_context():
-        try:
-            # テーブルが存在するかチェック
-            db.engine.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='transaction';").fetchone()
-            print("テーブル 'transaction' は既に存在します")
-        except:
-            print("テーブル 'transaction' が存在しません。作成します...")
-            db.create_all()
-            print("テーブルが作成されました")
-
-# アプリケーション初期化時にテーブル作成
-init_db()
-
-def cleanup_old_backups(backup_dir, max_files=3):
-    """バックアップディレクトリ内の古いCSVファイルを削除し、最新のmax_files件のみを保持する"""
-    # バックアップファイルのパターン
-    pattern = os.path.join(backup_dir, 'transactions_backup_*.csv')
-    backup_files = glob.glob(pattern)
-    
-    if len(backup_files) <= max_files:
-        return  # ファイル数が上限以下なら何もしない
-    
-    # ファイルを更新日時でソート（新しい順）
-    backup_files.sort(key=os.path.getmtime, reverse=True)
-    
-    # 古いファイルを削除
-    files_to_delete = backup_files[max_files:]
-    for file_path in files_to_delete:
-        try:
-            os.remove(file_path)
-            print(f"古いバックアップファイルを削除しました: {file_path}")
-        except OSError as e:
-            print(f"バックアップファイルの削除に失敗しました: {file_path}, エラー: {e}")
+# デバッグ情報を出力
+print(f"現在の作業ディレクトリ: {os.getcwd()}")
+print(f"データベースURI: {app.config['SQLALCHEMY_DATABASE_URI']}")
 
 # Transactionモデル
 class Transaction(db.Model):
@@ -75,12 +42,59 @@ class Transaction(db.Model):
             'balance': self.balance
         }
 
+def init_db():
+    """データベースを初期化する(SQLAlchemy 2.0対応)"""
+    try:
+        with app.app_context():
+            # テーブルの存在確認(SQLAlchemy 2.0対応)
+            inspector = inspect(db.engine)
+            tables = inspector.get_table_names()
+
+            if 'transaction' not in tables:
+                print("テーブル 'transaction' が存在しないので作成します。")
+                db.create_all()
+                print("データベースとテーブルが正常に作成されました。")
+            else:
+                print("テーブル 'transaction' は既に存在します。")
+    except Exception as e:
+        print(f"データベース初期化エラー: {e}")
+        try:
+            with app.app_context():
+                db.create_all()
+                print("フォールバック: テーブルを作成しました。")
+        except Exception as fallback_error:
+            print(f"フォールバック失敗: {fallback_error}")
+            raise
+
+
+def cleanup_old_backups(backup_dir, max_files=3):
+    """バックアップディレクトリ内の古いCSVファイルを削除し、最新のmax_files件のみを保持する"""
+    # バックアップファイルのパターン
+    pattern = os.path.join(backup_dir, 'transactions_backup_*.csv')
+    backup_files = glob.glob(pattern)
+    
+    if len(backup_files) <= max_files:
+        return  # ファイル数が上限以下なら何もしない
+    
+    # ファイルを更新日時でソート（新しい順）
+    backup_files.sort(key=os.path.getmtime, reverse=True)
+    
+    # 古いファイルを削除
+    files_to_delete = backup_files[max_files:]
+    for file_path in files_to_delete:
+        try:
+            os.remove(file_path)
+            print(f"古いバックアップファイルを削除しました: {file_path}")
+        except OSError as e:
+            print(f"バックアップファイルの削除に失敗しました: {file_path}, エラー: {e}")
+
 # テーブル存在確認とテーブル作成のヘルパー関数
 def ensure_table_exists():
-    """テーブルが存在しない場合に作成する"""
+    """テーブルが存在しない場合に作成する(SQLAlchemy 2.0対応)"""
     try:
         # テーブルの存在確認（簡単なクエリを実行）
-        db.session.execute("SELECT 1 FROM transaction LIMIT 1")
+        with db.engine.connect() as conn:
+            conn.execute(text("SELECT 1 FROM transaction LIMIT 1"))
     except Exception:
         # テーブルが存在しない場合は作成
         print("テーブルが存在しないため、作成します...")
@@ -388,6 +402,9 @@ def get_balance_history():
     except Exception as e:
         return jsonify({'error': f'残高履歴の取得に失敗しました: {str(e)}'}), 500
 
+
 if __name__ == "__main__":
     # 0.0.0.0に設定することで、ローカルホストから以外のアクセスも受け付ける
-    app.run(host='0.0.0.0', port=4000, debug=True)
+    # app.run(host='0.0.0.0', port=4000, debug=True)
+    init_db()
+    serve(app, host='0.0.0.0', port=4000)
