@@ -1,3 +1,55 @@
+"""
+Server Money - 複数資金項目家計簿管理アプリケーション
+
+このアプリケーションは、個人の収支管理を行うWebベースの家計簿システムです。
+
+主な機能:
+- 収入・支出の記録と管理
+- 口座別の残高追跡
+- 取引履歴の検索・編集・削除
+- CSVファイルへのバックアップ
+- 残高推移の可視化データ提供
+
+技術スタック:
+- Backend: Flask (Python)
+- Database: SQLite with SQLAlchemy ORM
+- Server: Waitress WSGI Server
+- Logging: Python標準ライブラリ（ファイルローテーション対応）
+
+API エンドポイント:
+- GET  /api/accounts        - 口座一覧取得
+- GET  /api/items          - 項目一覧取得
+- GET  /api/transactions   - 取引履歴取得（検索対応）
+- POST /api/transactions   - 新規取引追加
+- PUT  /api/transactions/<id> - 取引編集
+- DELETE /api/transactions/<id> - 取引削除
+- GET  /api/backup_csv     - CSVバックアップダウンロード
+- GET  /api/balance_history - 残高推移データ取得
+
+環境設定:
+- ENVIRONMENT=development  : 開発環境（コンソール + ファイルログ）
+- ENVIRONMENT=production   : 本番環境（ファイルログのみ）※デフォルト
+- LOG_LEVEL=DEBUG/INFO/WARNING/ERROR/CRITICAL : ログレベル設定
+
+データベース:
+- SQLite (money_tracker.db)
+- 自動テーブル作成機能
+- バックアップ機能付き
+
+ログ機能:
+- ファイルローテーション（10MB, 5ファイル保持）
+- 環境別ログ出力制御
+- 詳細なエラートラッキング
+
+開発環境:
+- uvを使用したライブラリと仮想環境の管理
+- uv run app.pyで実行される
+
+Author: ShiningWank0
+Created: 2025
+License: MIT
+"""
+
 from flask import Flask, render_template, jsonify, request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
@@ -6,8 +58,64 @@ from sqlalchemy import text, inspect
 import csv
 import os
 import glob
+import logging
+from logging.handlers import RotatingFileHandler
 
 app = Flask(__name__)
+
+# ログ設定
+def setup_logging():
+    """ログシステムを設定"""
+    # ログディレクトリを作成
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    
+    # 環境変数からログレベルを取得（デフォルトはINFO）
+    log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+    # 本番環境フラグを追加(デフォルトはセキュリティのために開発環境)
+    is_production = os.getenv('ENVIRONMENT', 'development').lower() == 'production'
+    log_level_mapping = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL
+    }
+    log_level = log_level_mapping.get(log_level, logging.INFO)
+    
+    # ログフォーマット
+    formatter = logging.Formatter(
+        '%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s'
+    )
+    
+    # ファイルハンドラー(ローテーション付き)(常に有効)
+    file_handler = RotatingFileHandler(
+        'logs/money_tracker.log',
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(log_level)
+    app.logger.addHandler(file_handler)
+    
+    # コンソールハンドラー(開発環境のみ)
+    if not is_production:
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        console_handler.setLevel(log_level)
+        app.logger.addHandler(console_handler)
+    
+    # アプリケーションロガー設定
+    app.logger.setLevel(log_level)
+    
+    # Werkzeugのログレベルを調整（本番環境では不要なログを抑制）
+    werkzeug_level = logging.WARNING if log_level >= logging.INFO else logging.INFO
+    logging.getLogger('werkzeug').setLevel(werkzeug_level)
+    
+    environment_type = "本番環境" if is_production else "開発環境"
+    app.logger.info(f"ログシステムを初期化しました ({environment_type}, レベル: {logging.getLevelName(log_level)})")
+
+setup_logging()
 
 # データベース設定
 # 相対パスが推奨
@@ -16,9 +124,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# デバッグ情報を出力
-print(f"現在の作業ディレクトリ: {os.getcwd()}")
-print(f"データベースURI: {app.config['SQLALCHEMY_DATABASE_URI']}")
+# デバッグ情報をログ出力
+app.logger.info(f"現在の作業ディレクトリ: {os.getcwd()}")
+app.logger.info(f"データベースURI: {app.config['SQLALCHEMY_DATABASE_URI']}")
 
 # Transactionモデル
 class Transaction(db.Model):
@@ -51,19 +159,19 @@ def init_db():
             tables = inspector.get_table_names()
 
             if 'transaction' not in tables:
-                print("テーブル 'transaction' が存在しないので作成します。")
+                app.logger.info("テーブル 'transaction' が存在しないので作成します。")
                 db.create_all()
-                print("データベースとテーブルが正常に作成されました。")
+                app.logger.info("データベースとテーブルが正常に作成されました。")
             else:
-                print("テーブル 'transaction' は既に存在します。")
+                app.logger.info("テーブル 'transaction' は既に存在します。")
     except Exception as e:
-        print(f"データベース初期化エラー: {e}")
+        app.logger.error(f"データベース初期化エラー: {e}")
         try:
             with app.app_context():
                 db.create_all()
-                print("フォールバック: テーブルを作成しました。")
+                app.logger.info("フォールバック: テーブルを作成しました。")
         except Exception as fallback_error:
-            print(f"フォールバック失敗: {fallback_error}")
+            app.logger.error(f"フォールバック失敗: {fallback_error}")
             raise
 
 
@@ -84,9 +192,9 @@ def cleanup_old_backups(backup_dir, max_files=3):
     for file_path in files_to_delete:
         try:
             os.remove(file_path)
-            print(f"古いバックアップファイルを削除しました: {file_path}")
+            app.logger.info(f"古いバックアップファイルを削除しました: {file_path}")
         except OSError as e:
-            print(f"バックアップファイルの削除に失敗しました: {file_path}, エラー: {e}")
+            app.logger.error(f"バックアップファイルの削除に失敗しました: {file_path}, エラー: {e}")
 
 # テーブル存在確認とテーブル作成のヘルパー関数
 def ensure_table_exists():
@@ -97,10 +205,10 @@ def ensure_table_exists():
             conn.execute(text("SELECT 1 FROM transaction LIMIT 1"))
     except Exception:
         # テーブルが存在しない場合は作成
-        print("テーブルが存在しないため、作成します...")
+        app.logger.info("テーブルが存在しないため、作成します...")
         with app.app_context():
             db.create_all()
-        print("テーブルを作成しました")
+        app.logger.info("テーブルを作成しました")
 
 @app.route("/")
 def hello_world():
@@ -109,6 +217,7 @@ def hello_world():
 @app.route("/api/accounts")
 def get_accounts():
     """データベースから口座名（資金項目名）のリストを取得するAPI"""
+    app.logger.debug("口座リストを取得中")
     ensure_table_exists()
     # Get distinct accounts from transactions in the database
     db_accounts_query = db.session.query(Transaction.account.distinct()).all()
@@ -118,22 +227,28 @@ def get_accounts():
     # Convert set to list and sort alphabetically
     sorted_fund_item_list = sorted(list(fund_items_set))
     
+    app.logger.debug(f"口座リスト取得完了: {len(sorted_fund_item_list)}件")
     return jsonify(sorted_fund_item_list)
 
 @app.route("/api/items")
 def get_items():
     """データベースから項目名（item）のリストを取得するAPI"""
+    app.logger.debug("項目リストを取得中")
     ensure_table_exists()
     items = db.session.query(Transaction.item.distinct()).order_by(Transaction.item).all()
     item_list = [item[0] for item in items]
+    app.logger.debug(f"項目リスト取得完了: {len(item_list)}件")
     return jsonify(item_list)
 
 @app.route("/api/transactions")
 def get_transactions():
     """取引履歴をJSON形式で返すAPI"""
-    ensure_table_exists()
     search_query = request.args.get('search', '').strip()
     account = request.args.get('account', '').strip()
+    
+    app.logger.debug(f"取引履歴を取得中 - 検索: '{search_query}', 口座: '{account}'")
+    
+    ensure_table_exists()
     
     query = Transaction.query
     
@@ -146,6 +261,7 @@ def get_transactions():
         query = query.filter(Transaction.account == account)
     
     transactions = query.all()
+    app.logger.debug(f"取引履歴取得完了: {len(transactions)}件")
     return jsonify([t.to_dict() for t in transactions])
 
 @app.route("/api/transactions", methods=['POST'])
@@ -206,6 +322,8 @@ def add_transaction():
         db.session.add(transaction)
         db.session.commit()
         
+        app.logger.info(f"新しい取引を追加しました: {account} - {data['item']} - {amount}円")
+        
         return jsonify({
             'message': '取引が正常に追加されました',
             'transaction': transaction.to_dict()
@@ -213,17 +331,21 @@ def add_transaction():
         
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"取引の追加に失敗しました: {str(e)}", exc_info=True)
         return jsonify({'error': f'取引の追加に失敗しました: {str(e)}'}), 500
 
 @app.route("/api/backup_csv")
 def backup_to_csv():
     """データベースのデータをCSVファイルにバックアップ"""
+    app.logger.info("CSVバックアップを開始しています")
+    
     transactions = Transaction.query.order_by(Transaction.date).all()
     
     # バックアップディレクトリがなければ作成
     backup_dir = 'backups'
     if not os.path.exists(backup_dir):
         os.makedirs(backup_dir)
+        app.logger.info(f"バックアップディレクトリを作成しました: {backup_dir}")
     
     # 古いバックアップファイルを先にクリーンアップ（最新3件のみ保持）
     cleanup_old_backups(backup_dir, max_files=2)  # 新しいファイルを作成するので2件に制限
@@ -258,7 +380,7 @@ def backup_to_csv():
             }
             writer.writerow(row_data)
     
-    print(f"CSVバックアップファイルを作成しました: {csv_filename}")
+    app.logger.info(f"CSVバックアップファイルを作成しました: {csv_filename}")
     
     # ファイルをダウンロードとして返す
     return send_file(csv_filename, mimetype='text/csv', as_attachment=True, download_name=os.path.basename(csv_filename))
@@ -325,9 +447,12 @@ def update_transaction(transaction_id):
                 tx.balance = running_balance
             db.session.commit()
 
+        app.logger.info(f"取引を更新しました: ID {transaction_id} - {data['account']} - {data['item']}")
+
         return jsonify({'message': '取引が更新されました', 'transaction': transaction.to_dict()})
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"取引の更新に失敗しました: {str(e)}", exc_info=True)
         return jsonify({'error': f'取引の更新に失敗しました: {str(e)}'}), 500
 
 @app.route("/api/transactions/<int:transaction_id>", methods=['DELETE'])
@@ -337,9 +462,15 @@ def delete_transaction(transaction_id):
         transaction = Transaction.query.get(transaction_id)
         if not transaction:
             return jsonify({'error': '該当取引が見つかりません'}), 404
+        
         account = transaction.account
+        item = transaction.item
+        amount = transaction.amount
+        
         db.session.delete(transaction)
         db.session.commit()
+        
+        app.logger.info(f"取引を削除しました: ID {transaction_id} - {account} - {item} - {amount}円")
         # 残高の再計算（同じ口座の全取引、日付昇順）
         txs = Transaction.query.filter_by(account=account).order_by(Transaction.date, Transaction.id).all()
         running_balance = 0
@@ -353,16 +484,20 @@ def delete_transaction(transaction_id):
         return jsonify({'message': '取引が削除されました'})
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"取引の削除に失敗しました: {str(e)}", exc_info=True)
         return jsonify({'error': f'取引の削除に失敗しました: {str(e)}'}), 500
 
 @app.route("/api/balance_history")
 def get_balance_history():
     """残高推移データを取得するAPI"""
+    app.logger.debug("残高履歴を取得中")
+    
     try:
         # 全ての取引を日付順で取得
         transactions = Transaction.query.order_by(Transaction.date, Transaction.id).all()
         
         if not transactions:
+            app.logger.debug("取引データが存在しません")
             return jsonify({'accounts': [], 'dates': [], 'balances': {}})
         
         # 口座ごとに残高推移を計算
@@ -393,6 +528,8 @@ def get_balance_history():
                     last_balance = account_balances[account][date]
                 result_balances[account].append(last_balance)
         
+        app.logger.debug(f"残高履歴取得完了: {len(account_balances)}口座, {len(sorted_dates)}日分")
+        
         return jsonify({
             'accounts': list(account_balances.keys()),
             'dates': sorted_dates,
@@ -400,11 +537,21 @@ def get_balance_history():
         })
         
     except Exception as e:
+        app.logger.error(f"残高履歴の取得に失敗しました: {str(e)}", exc_info=True)
         return jsonify({'error': f'残高履歴の取得に失敗しました: {str(e)}'}), 500
 
 
 if __name__ == "__main__":
     # 0.0.0.0に設定することで、ローカルホストから以外のアクセスも受け付ける
     # app.run(host='0.0.0.0', port=4000, debug=True)
-    init_db()
-    serve(app, host='0.0.0.0', port=4000)
+    try:
+        app.logger.info("アプリケーションを開始しています...")
+        init_db()
+        app.logger.info("サーバーを起動します (host=0.0.0.0, port=4000)")
+        serve(app, host='0.0.0.0', port=4000)
+    except KeyboardInterrupt:
+        app.logger.info("アプリケーションが手動で停止されました")
+    except Exception as e:
+        app.logger.error(f"アプリケーション実行中にエラーが発生しました: {e}", exc_info=True)
+    finally:
+        app.logger.info("アプリケーションを終了します")
