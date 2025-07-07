@@ -50,7 +50,7 @@ Created: 2025
 License: MIT
 """
 
-from flask import Flask, render_template, jsonify, request, send_file, session, redirect, url_for, flash
+from flask import Flask, render_template, jsonify, request, send_file, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from waitress import serve
