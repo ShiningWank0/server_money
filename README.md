@@ -25,6 +25,12 @@ Server Moneyは、個人や小規模組織の収支管理を効率的に行うWe
 
 ## 🚀 特徴
 
+### 🔐 セキュアな認証システム
+- **bcryptハッシュ化**: ソルト付きパスワードハッシュによる強固な認証
+- **セッション管理**: 2時間タイムアウト、セキュアクッキー設定
+- **ログイン試行制限**: 5回失敗で30分間のIPアドレスロック
+- **URL直打ち対策**: 全APIエンドポイントの認証必須化
+
 ### 💰 包括的な収支管理
 - **複数口座対応**: 現金、銀行口座、電子マネーなど複数の資金項目を個別に管理
 - **詳細な取引記録**: 日付、時刻、項目、金額、残高を自動計算・記録
@@ -71,6 +77,8 @@ Server Moneyは、個人や小規模組織の収支管理を効率的に行うWe
 - **SQLAlchemy 2.0+**: ORM（オブジェクトリレーショナルマッピング）
 - **SQLite**: 軽量埋め込みデータベース
 - **Waitress**: WSGIサーバー（本番・開発環境共通）
+- **bcrypt**: パスワードハッシュ化ライブラリ
+- **python-dotenv**: 環境変数管理
 
 ### フロントエンド
 - **Vue.js 3.0**: プログレッシブJavaScriptフレームワーク
@@ -88,11 +96,17 @@ Server Moneyは、個人や小規模組織の収支管理を効率的に行うWe
 ```
 server_money/
 ├── 📄 app.py                      # メインFlaskアプリケーション
+├── 📄 auth_setup.py               # 初回認証セットアップスクリプト
 ├── 📄 pyproject.toml               # プロジェクト設定・依存関係
 ├── 📄 uv.lock                      # 依存関係ロックファイル
+├── 📄 .env.example                 # 環境変数設定例
+├── 📄 .gitignore                   # Git除外設定
 ├── 📄 README.md                    # プロジェクト説明書（本ファイル）
+├── 📄 CLAUDE.md                    # 開発者向け詳細ドキュメント
+├── 📄 LICENSE                      # MITライセンス
 ├── 📁 templates/                   # HTMLテンプレート
-│   └── 📄 index.html               # メインHTML構造
+│   ├── 📄 index.html               # メインHTML構造
+│   └── 📄 login.html               # ログイン画面
 ├── 📁 static/                      # 静的ファイル
 │   ├── 📁 css/
 │   │   └── 📄 style.css            # UIスタイルシート
@@ -111,10 +125,12 @@ server_money/
 ### 各ディレクトリの役割
 
 #### 🏗️ コアアプリケーション
-- **`app.py`**: Flask WebサーバーとAPI エンドポイント、データベースモデル定義
+- **`app.py`**: Flask Webサーバー、認証システム、API エンドポイント、データベースモデル定義
+- **`auth_setup.py`**: 初回認証設定の自動化スクリプト（パスワードハッシュ化、環境変数生成）
 - **`templates/index.html`**: SPA（Single Page Application）のメインHTML構造
+- **`templates/login.html`**: グラスモーフィズムデザインのログイン画面
 - **`static/css/style.css`**: グラスモーフィズムデザインとレスポンシブレイアウト
-- **`static/js/main.js`**: Vue.js リアクティブUI、API通信、データ可視化ロジック
+- **`static/js/main.js`**: Vue.js リアクティブUI、API通信、認証管理、データ可視化ロジック
 
 #### 💾 データ・ストレージ
 - **`instance/money_tracker.db`**: 取引データ、残高情報をSQLiteで管理
@@ -122,8 +138,10 @@ server_money/
 - **`backups/`**: ユーザーがダウンロード可能なCSVバックアップファイル
 
 #### ⚙️ 設定・依存関係
-- **`pyproject.toml`**: プロジェクトメタデータ、依存ライブラリ指定
+- **`pyproject.toml`**: プロジェクトメタデータ、依存ライブラリ指定（bcrypt, python-dotenv含む）
 - **`uv.lock`**: 依存関係の詳細バージョン固定（再現可能ビルド）
+- **`.env.example`**: 環境変数設定テンプレート（認証情報、ログレベル等）
+- **`.gitignore`**: 機密情報ファイルの除外設定
 
 ## 🎯 機能詳細
 
@@ -192,7 +210,40 @@ server_money/
 
 Server MoneyはRESTful APIを提供し、フロントエンドとの効率的な通信を実現しています。
 
+### 認証エンドポイント
+
+#### `GET /login`
+**概要**: ログイン画面の表示
+
+#### `POST /api/login`
+**概要**: ログイン認証
+
+**リクエストボディ**:
+```json
+{
+  "username": "your_username",
+  "password": "your_password"
+}
+```
+
+**レスポンス例**:
+```json
+{
+  "success": true,
+  "message": "ログインしました",
+  "redirect": "/"
+}
+```
+
+#### `POST /api/logout`
+**概要**: ログアウト（認証必須）
+
+#### `GET /api/auth_status`
+**概要**: 現在の認証状態確認
+
 ### 口座・項目管理
+
+⚠️ **認証必須**: 以下の全APIエンドポイントは認証が必要です。
 
 #### `GET /api/accounts`
 **概要**: データベースから資金項目（口座）リストを取得
@@ -324,6 +375,8 @@ Server MoneyのUIデザインは、**機能性と美しさの両立**を目指�
 
 Server Moneyは**uv**（高速Pythonパッケージマネージャー）を使用した環境管理を推奨しています。
 
+⚠️ **重要**: アプリケーション初回起動前に認証設定が必要です。
+
 ### 前提条件
 
 - **Python 3.12+** 
@@ -351,6 +404,10 @@ cd server_money
 
 # 依存関係の自動インストール（uvが仮想環境も自動作成）
 uv sync
+
+# 🔐 【必須】初回認証設定
+uv run auth_setup.py
+# ログインIDとパスワードを設定してください
 
 # アプリケーションの実行
 uv run app.py
@@ -402,8 +459,13 @@ docker run -p 4000:4000 server-money
 
 | 変数名 | デフォルト値 | 説明 |
 |--------|-------------|------|
-| `ENVIRONMENT` | `production` | 実行環境（`development` / `production`） |
+| `LOGIN_USERNAME` | （必須） | ログインID |
+| `LOGIN_PASSWORD_HASH` | （必須） | bcryptハッシュ化されたパスワード |
+| `SECRET_KEY` | （必須） | Flaskセッション暗号化キー |
+| `ENVIRONMENT` | `development` | 実行環境（`development` / `production`） |
 | `LOG_LEVEL` | `INFO` | ログレベル（`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`） |
+
+⚠️ **セキュリティ注意**: 認証関連の環境変数は`.env`ファイルで管理され、Gitから除外されています。
 
 ### 環境別設定
 
@@ -436,6 +498,9 @@ docker run -p 4000:4000 server-money
 ### 開発環境のセットアップ
 
 ```bash
+# 🔐 初回のみ：認証設定
+uv run auth_setup.py
+
 # 開発用依存関係の追加（例：テストツール）
 uv add --dev pytest pytest-flask
 
@@ -451,12 +516,15 @@ ENVIRONMENT=development LOG_LEVEL=DEBUG uv run app.py
 #### バックエンド（`app.py`）
 
 **主要コンポーネント**:
-1. **ログシステム設定**: 環境別ログ設定、ローテーション
-2. **データベースモデル**: SQLAlchemy ORMによるTransactionモデル
-3. **API エンドポイント**: REST APIの実装
-4. **エラーハンドリング**: 例外処理とログ記録
+1. **認証システム**: bcryptパスワード検証、セッション管理、ログイン試行制限
+2. **ログシステム設定**: 環境別ログ設定、ローテーション
+3. **データベースモデル**: SQLAlchemy ORMによるTransactionモデル
+4. **API エンドポイント**: REST APIの実装（全て認証必須）
+5. **エラーハンドリング**: 例外処理とログ記録
 
 **重要な関数**:
+- `verify_password()`: bcryptパスワード検証
+- `login_required()`: 認証必須デコレータ
 - `setup_logging()`: ログシステム初期化
 - `init_db()`: データベース・テーブル自動作成
 - `ensure_table_exists()`: テーブル存在確認・作成
@@ -466,13 +534,16 @@ ENVIRONMENT=development LOG_LEVEL=DEBUG uv run app.py
 **Vue.jsアプリケーション構造**:
 1. **リアクティブデータ**: 取引履歴、口座情報、UI状態
 2. **computed プロパティ**: フィルタリング、ソート、残高計算
-3. **メソッド**: API通信、UI操作、データ可視化
+3. **メソッド**: API通信、認証管理、UI操作、データ可視化
 4. **ライフサイクル**: 初期データロード
 
 **重要なcomputed**:
 - `filteredTransactions`: 検索・フィルタリング結果
 - `transactionsWithRecalculatedBalance`: 残高再計算
 - `currentBalance`: 現在残高の算出
+
+**重要なメソッド**:
+- `logout()`: セキュアなログアウト処理
 
 ### APIエンドポイントの拡張
 
@@ -785,6 +856,12 @@ test: テスト追加・修正
 
 ### よくある質問（FAQ）
 
+**Q: 初回起動時にログインできません**
+A: `uv run auth_setup.py`で認証設定を完了してからアプリケーションを起動してください。
+
+**Q: パスワードを忘れました**
+A: `uv run auth_setup.py`を再実行して新しいパスワードを設定してください。
+
 **Q: uvを使わず通常のpipで実行できますか？**
 A: 可能ですが、uvの使用を強く推奨します。依存関係の管理とパフォーマンスが大幅に向上します。
 
@@ -835,4 +912,4 @@ SOFTWARE.
 
 **Server Money**で、あなたの財務管理をより簡単で楽しいものにしましょう！ 💰✨
 
-*最終更新: 2025年6月14日*
+*最終更新: 2025年7月7日*

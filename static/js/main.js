@@ -453,7 +453,6 @@ createApp({
         // 金額欄のキーダウンイベント（無効なキーを防ぐ）
         onAmountKeydown(event) {
             const key = event.key;
-            const code = event.code;
 
             // 許可するキー
             const allowedKeys = [
@@ -490,7 +489,8 @@ createApp({
             event.preventDefault();
 
             // クリップボードからデータを取得
-            const pastedData = (event.clipboardData || window.clipboardData).getData('text');
+            const pastedData = event.clipboardData ? event.clipboardData.getData('text') : 
+                              (window.clipboardData ? window.clipboardData.getData('text') : '');
 
             // 数字以外を除去して処理
             const filteredData = this.filterNumericOnly(pastedData);
