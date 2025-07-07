@@ -489,8 +489,17 @@ createApp({
             event.preventDefault();
 
             // クリップボードからデータを取得
-            const pastedData = event.clipboardData ? event.clipboardData.getData('text') : 
-                              (window.clipboardData ? window.clipboardData.getData('text') : '');
+            let pastedData = '';
+            if (event.clipboardData) {
+                pastedData = event.clipboardData.getData('text');
+            } else if (window.clipboardData) {
+                // IE対応（型エラーを避けるためtry-catchで囲む）
+                try {
+                    pastedData = window.clipboardData.getData('text');
+                } catch (e) {
+                    pastedData = '';
+                }
+            }
 
             // 数字以外を除去して処理
             const filteredData = this.filterNumericOnly(pastedData);
