@@ -748,6 +748,19 @@ body {
     background: #e0e0e0;
 }
 
+/* ログアウトボタンのスタイル */
+.logout-btn {
+    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%) !important;
+    color: white !important;
+    margin-top: auto; /* メニューの最下部に配置 */
+}
+
+.logout-btn:hover {
+    background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);
+}
+
 /* 縦三本線メニューアイコン */
 .vertical-menu-icon {
     display: flex;

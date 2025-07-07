@@ -668,6 +668,32 @@ createApp({
         hideGraphModal() {
             this.showGraph = false;
         },
+        async logout() {
+            if (!confirm('ログアウトしますか？')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // ログアウト成功 - ログイン画面にリダイレクト
+                    window.location.href = '/login';
+                } else {
+                    alert('ログアウトに失敗しました');
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('ネットワークエラーが発生しました');
+            }
+        },
         renderBalanceChart() {
             // 既存のグラフがあれば破棄
             if (this._balanceChartInstance) {

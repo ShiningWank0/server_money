@@ -50,9 +50,9 @@ Created: 2025
 License: MIT
 """
 
-from flask import Flask, render_template, jsonify, request, send_file
+from flask import Flask, render_template, jsonify, request, send_file, session, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timedelta
 from waitress import serve
 from sqlalchemy import text, inspect
 import csv
@@ -60,8 +60,23 @@ import os
 import glob
 import logging
 from logging.handlers import RotatingFileHandler
+from functools import wraps
+import bcrypt
+from dotenv import load_dotenv
+
+# .envファイルの読み込み
+load_dotenv()
 
 app = Flask(__name__)
+
+# セッション設定
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # 2時間でセッションタイムアウト
+
+# ログイン試行回数制限のためのメモリ辞書
+login_attempts = {}
+LOGIN_ATTEMPT_LIMIT = 5
+LOCKOUT_DURATION = 30  # 30分
 
 # ログ設定
 def setup_logging():
@@ -115,7 +130,36 @@ def setup_logging():
     environment_type = "本番環境" if is_production else "開発環境"
     app.logger.info(f"ログシステムを初期化しました ({environment_type}, レベル: {logging.getLevelName(log_level)})")
 
+# 環境変数チェック
+def check_auth_setup():
+    """認証設定の確認"""
+    if not os.path.exists('.env'):
+        print("\n⚠️  認証設定が見つかりません")
+        print("初回セットアップを実行してください: uv run auth_setup.py")
+        print("その後、アプリケーションを開始してください: uv run app.py")
+        return False
+    
+    required_vars = ['LOGIN_USERNAME', 'LOGIN_PASSWORD_HASH', 'SECRET_KEY']
+    missing_vars = []
+    
+    for var in required_vars:
+        if not os.getenv(var):
+            missing_vars.append(var)
+    
+    if missing_vars:
+        print(f"\n❌ 以下の環境変数が設定されていません: {', '.join(missing_vars)}")
+        print("認証設定を再実行してください: uv run auth_setup.py")
+        return False
+    
+    return True
+
 setup_logging()
+
+# 認証設定チェック
+if not check_auth_setup():
+    exit(1)
+
+app.logger.info("認証設定を確認しました")
 
 # データベース設定
 # 相対パスが推奨
@@ -196,6 +240,55 @@ def cleanup_old_backups(backup_dir, max_files=3):
         except OSError as e:
             app.logger.error(f"バックアップファイルの削除に失敗しました: {file_path}, エラー: {e}")
 
+# 認証関連のユーティリティ関数
+def verify_password(password, hash_str):
+    """パスワード検証"""
+    try:
+        password_bytes = password.encode('utf-8')
+        hash_bytes = hash_str.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hash_bytes)
+    except Exception as e:
+        app.logger.error(f"パスワード検証エラー: {e}")
+        return False
+
+def is_ip_locked(ip_address):
+    """IPアドレスがロックされているかチェック"""
+    if ip_address in login_attempts:
+        attempts, last_attempt = login_attempts[ip_address]
+        if attempts >= LOGIN_ATTEMPT_LIMIT:
+            time_since_last = datetime.now() - last_attempt
+            if time_since_last.total_seconds() < LOCKOUT_DURATION * 60:
+                return True
+            else:
+                # ロック期間が過ぎたらリセット
+                del login_attempts[ip_address]
+    return False
+
+def record_login_attempt(ip_address, success=False):
+    """ログイン試行を記録"""
+    if success:
+        # 成功時はリセット
+        if ip_address in login_attempts:
+            del login_attempts[ip_address]
+    else:
+        # 失敗時は回数をカウント
+        if ip_address in login_attempts:
+            attempts, _ = login_attempts[ip_address]
+            login_attempts[ip_address] = (attempts + 1, datetime.now())
+        else:
+            login_attempts[ip_address] = (1, datetime.now())
+
+def login_required(f):
+    """ログイン必須デコレータ"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session or not session['logged_in']:
+            if request.is_json:
+                return jsonify({'error': '認証が必要です', 'login_required': True}), 401
+            return redirect(url_for('login_page'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 # テーブル存在確認とテーブル作成のヘルパー関数
 def ensure_table_exists():
     """テーブルが存在しない場合に作成する(SQLAlchemy 2.0対応)"""
@@ -210,11 +303,99 @@ def ensure_table_exists():
             db.create_all()
         app.logger.info("テーブルを作成しました")
 
+# 認証エンドポイント
+@app.route("/login")
+def login_page():
+    """ログインページ"""
+    if 'logged_in' in session and session['logged_in']:
+        return redirect(url_for('hello_world'))
+    return render_template('login.html')
+
+@app.route("/api/login", methods=['POST'])
+def login():
+    """ログインAPI"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'リクエストデータが無効です'}), 400
+        
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        ip_address = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', 'unknown'))
+        
+        # IPアドレスロックチェック
+        if is_ip_locked(ip_address):
+            app.logger.warning(f"ロックされたIPからのログイン試行: {ip_address}")
+            return jsonify({
+                'error': f'ログイン試行回数が上限に達しました。{LOCKOUT_DURATION}分後に再試行してください。'
+            }), 429
+        
+        # 認証情報の検証
+        expected_username = os.getenv('LOGIN_USERNAME')
+        expected_password_hash = os.getenv('LOGIN_PASSWORD_HASH')
+        
+        if not expected_username or not expected_password_hash:
+            app.logger.error("認証設定が不完全です")
+            return jsonify({'error': 'サーバー設定エラー'}), 500
+        
+        # ユーザー名とパスワードの検証
+        if username == expected_username and verify_password(password, expected_password_hash):
+            # ログイン成功
+            session['logged_in'] = True
+            session['username'] = username
+            session['login_time'] = datetime.now().isoformat()
+            session.permanent = True
+            
+            record_login_attempt(ip_address, success=True)
+            app.logger.info(f"ユーザー '{username}' がログインしました (IP: {ip_address})")
+            
+            return jsonify({
+                'success': True,
+                'message': 'ログインしました',
+                'redirect': url_for('hello_world')
+            })
+        else:
+            # ログイン失敗
+            record_login_attempt(ip_address, success=False)
+            app.logger.warning(f"ログイン失敗: ユーザー '{username}' (IP: {ip_address})")
+            
+            remaining_attempts = LOGIN_ATTEMPT_LIMIT - login_attempts.get(ip_address, (0, None))[0]
+            return jsonify({
+                'error': 'ユーザー名またはパスワードが正しくありません',
+                'remaining_attempts': max(0, remaining_attempts)
+            }), 401
+            
+    except Exception as e:
+        app.logger.error(f"ログイン処理エラー: {str(e)}", exc_info=True)
+        return jsonify({'error': 'ログイン処理に失敗しました'}), 500
+
+@app.route("/api/logout", methods=['POST'])
+@login_required
+def logout():
+    """ログアウトAPI"""
+    username = session.get('username', 'unknown')
+    session.clear()
+    app.logger.info(f"ユーザー '{username}' がログアウトしました")
+    return jsonify({'success': True, 'message': 'ログアウトしました'})
+
+@app.route("/api/auth_status")
+def auth_status():
+    """認証状態確認API"""
+    if 'logged_in' in session and session['logged_in']:
+        return jsonify({
+            'authenticated': True,
+            'username': session.get('username'),
+            'login_time': session.get('login_time')
+        })
+    return jsonify({'authenticated': False})
+
 @app.route("/")
+@login_required
 def hello_world():
     return render_template('index.html')
 
 @app.route("/api/accounts")
+@login_required
 def get_accounts():
     """データベースから口座名（資金項目名）のリストを取得するAPI"""
     app.logger.debug("口座リストを取得中")
@@ -231,6 +412,7 @@ def get_accounts():
     return jsonify(sorted_fund_item_list)
 
 @app.route("/api/items")
+@login_required
 def get_items():
     """データベースから項目名（item）のリストを取得するAPI"""
     app.logger.debug("項目リストを取得中")
@@ -241,6 +423,7 @@ def get_items():
     return jsonify(item_list)
 
 @app.route("/api/transactions")
+@login_required
 def get_transactions():
     """取引履歴をJSON形式で返すAPI"""
     search_query = request.args.get('search', '').strip()
@@ -265,6 +448,7 @@ def get_transactions():
     return jsonify([t.to_dict() for t in transactions])
 
 @app.route("/api/transactions", methods=['POST'])
+@login_required
 def add_transaction():
     """新しい取引を追加するAPI"""
     try:
@@ -335,6 +519,7 @@ def add_transaction():
         return jsonify({'error': f'取引の追加に失敗しました: {str(e)}'}), 500
 
 @app.route("/api/backup_csv")
+@login_required
 def backup_to_csv():
     """データベースのデータをCSVファイルにバックアップ"""
     app.logger.info("CSVバックアップを開始しています")
@@ -386,6 +571,7 @@ def backup_to_csv():
     return send_file(csv_filename, mimetype='text/csv', as_attachment=True, download_name=os.path.basename(csv_filename))
 
 @app.route("/api/download_log")
+@login_required
 def download_log():
     """最新のログファイルをダウンロードするAPI"""
     app.logger.info("ログファイルダウンロードを開始しています")
@@ -437,6 +623,7 @@ def download_log():
         return jsonify({'error': f'ログファイルダウンロードに失敗しました: {str(e)}'}), 500
 
 @app.route("/api/transactions/<int:transaction_id>", methods=['PUT', 'PATCH'])
+@login_required
 def update_transaction(transaction_id):
     """既存取引の編集API"""
     try:
@@ -476,7 +663,6 @@ def update_transaction(transaction_id):
 
         # 変更前の情報
         old_account = transaction.account
-        old_date = transaction.date
 
         # トランザクション内容を更新
         transaction.account = data['account']
@@ -507,6 +693,7 @@ def update_transaction(transaction_id):
         return jsonify({'error': f'取引の更新に失敗しました: {str(e)}'}), 500
 
 @app.route("/api/transactions/<int:transaction_id>", methods=['DELETE'])
+@login_required
 def delete_transaction(transaction_id):
     """取引の削除API"""
     try:
@@ -539,6 +726,7 @@ def delete_transaction(transaction_id):
         return jsonify({'error': f'取引の削除に失敗しました: {str(e)}'}), 500
 
 @app.route("/api/balance_history")
+@login_required
 def get_balance_history():
     """残高推移データを取得するAPI"""
     app.logger.debug("残高履歴を取得中")
