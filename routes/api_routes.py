@@ -44,13 +44,29 @@ def get_accounts():
 @api_bp.route("/api/items")
 @login_required
 def get_items():
-    """データベースから項目名（item）のリストを取得するAPI"""
+    """データベースから項目名（item）のリストを取得するAPI
+    
+    クエリパラメータ:
+        account: 資金項目名を指定すると、その資金項目の項目名のみを返す
+    """
     from flask import current_app
     
-    current_app.logger.debug("項目リストを取得中")
+    account = request.args.get('account', '').strip()
+    
+    if account:
+        current_app.logger.debug(f"項目リストを取得中（資金項目: {account}）")
+    else:
+        current_app.logger.debug("項目リストを取得中（全体）")
+    
     ensure_table_exists()
     
-    items = db.session.query(Transaction.item.distinct()).order_by(Transaction.item).all()
+    if account:
+        # 指定された資金項目の項目名のみを取得
+        items = db.session.query(Transaction.item.distinct()).filter_by(account=account).order_by(Transaction.item).all()
+    else:
+        # 全ての項目名を取得
+        items = db.session.query(Transaction.item.distinct()).order_by(Transaction.item).all()
+    
     item_list = [item[0] for item in items]
     
     current_app.logger.debug(f"項目リスト取得完了: {len(item_list)}件")
