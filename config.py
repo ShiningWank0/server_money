@@ -20,6 +20,9 @@ class Config:
     SQLALCHEMY_DATABASE_URI = 'sqlite:///money_tracker.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
+    # サーバー設定
+    HOST_IP = os.getenv('HOST_IP', '127.0.0.1')  # デフォルトはlocalhostのみ
+    
     # ログ設定
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
     ENVIRONMENT = os.getenv('ENVIRONMENT', 'development').lower()
