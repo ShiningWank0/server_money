@@ -23,8 +23,7 @@ instance/
 backups/
 
 # ログファイル
-logs/
-*.log
+logs/*.log
 
 # IDE設定
 .vscode/
