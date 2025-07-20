@@ -90,7 +90,7 @@ def login_required(f):
         if 'logged_in' not in session or not session['logged_in']:
             if request.is_json:
                 return jsonify({'error': '認証が必要です', 'login_required': True}), 401
-            return redirect(url_for('login_page'))
+            return redirect(url_for('auth.login_page'))
         return f(*args, **kwargs)
     return decorated_function
 
