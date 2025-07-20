@@ -212,9 +212,13 @@ createApp({
                 this.fundItemNames = ['すべて'];
             }
         },
-        async loadItemNames() {
+        async loadItemNames(account = null) {
             try {
-                const response = await fetch('/api/items');
+                let url = '/api/items';
+                if (account) {
+                    url += `?account=${encodeURIComponent(account)}`;
+                }
+                const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error('項目データの取得に失敗しました');
                 }
@@ -365,6 +369,10 @@ createApp({
             // 「すべて」以外の最初の資金項目を初期値に
             const firstFundItem = this.fundItemNames.find(name => name !== 'すべて') || '';
             this.newTransaction.fundItem = firstFundItem;
+            // 選択された資金項目の項目名を取得
+            if (firstFundItem) {
+                await this.loadItemNames(firstFundItem);
+            }
             this.newTransaction.item = '';
             this.newTransaction.type = 'expense';
             this.newTransaction.amount = '';
@@ -392,6 +400,10 @@ createApp({
                 type: transaction.type,
                 amount: transaction.amount.toString()
             };
+            // 編集対象の資金項目の項目名を取得
+            if (this.newTransaction.fundItem) {
+                await this.loadItemNames(this.newTransaction.fundItem);
+            }
             this.showAddTransactionModal = true;
         },
         hideAddModal() {
@@ -405,9 +417,13 @@ createApp({
             this.showFundItemDropdown = !this.showFundItemDropdown;
         },
         // 資金項目を選択
-        selectFundItemInModal(fundItem) {
+        async selectFundItemInModal(fundItem) {
             this.newTransaction.fundItem = fundItem;
             this.showFundItemDropdown = false;
+            // 選択された資金項目の項目名を再取得
+            await this.loadItemNames(fundItem);
+            // 項目をリセット（新しい資金項目の項目名に変わったため）
+            this.newTransaction.item = '';
         },
         // 資金項目入力フィールドのクリック処理
         onFundItemInputClick() {
@@ -529,6 +545,7 @@ createApp({
             return fundItemName && !this.fundItemNames.includes(fundItemName);
         },
         isNewItem(itemName) {
+            // 現在選択されている資金項目内での重複チェック
             return itemName && !this.itemNames.includes(itemName);
         },
         async addTransaction() {
@@ -588,6 +605,10 @@ createApp({
                 // モーダルを閉じて、データを再読み込み
                 this.hideAddModal();
                 await this.loadFundItems(); // 新しい資金項目が追加された可能性があるため
+                // 新しい項目が追加された可能性があるため、現在の資金項目の項目名を再取得
+                if (this.newTransaction.fundItem) {
+                    await this.loadItemNames(this.newTransaction.fundItem);
+                }
                 await this.loadTransactions();
 
             } catch (error) {
@@ -637,6 +658,10 @@ createApp({
                 alert(result.message);
                 this.hideAddModal();
                 await this.loadFundItems();
+                // 編集で項目が変更された可能性があるため、現在の資金項目の項目名を再取得
+                if (this.newTransaction.fundItem) {
+                    await this.loadItemNames(this.newTransaction.fundItem);
+                }
                 await this.loadTransactions();
             } catch (error) {
                 console.error('取引編集エラー:', error);
@@ -658,6 +683,11 @@ createApp({
                 alert(result.message);
                 this.hideAddModal();
                 await this.loadFundItems();
+                // 削除で項目リストが変更された可能性があるため
+                // モーダルが開いている場合は現在の資金項目の項目名を再取得
+                if (this.showAddTransactionModal && this.newTransaction.fundItem) {
+                    await this.loadItemNames(this.newTransaction.fundItem);
+                }
                 await this.loadTransactions();
             } catch (error) {
                 console.error('取引削除エラー:', error);
@@ -801,7 +831,7 @@ createApp({
             // 資金項目データ読み込み完了後に取引データを読み込む
             this.loadTransactions();
         });
-        this.loadItemNames();
+        // 初期状態では項目名は空（資金項目選択時に取得）
     },
     beforeUnmount() {
         // イベントリスナーをクリーンアップ
