@@ -27,13 +27,25 @@
                             <span v-else key="up">▶</span>
                           </transition>
                         </span>
-                        <span v-text="selectedFundItem"></span>
+                        <span v-text="selectedFundItemDisplay"></span>
                         <div v-if="showAccountDropdown" class="account-dropdown" @click.stop>
-                            <ul>
-                                <li v-for="fundItemName in fundItemNames" :key="fundItemName" @click="selectFundItem(fundItemName)">
-                                    <span v-text="fundItemName"></span>
-                                </li>
-                            </ul>
+                            <!-- 全選択/全解除ボタン -->
+                            <div class="fund-item-header">
+                                <button @click="toggleAllFundItems" class="toggle-all-btn" v-text="selectedFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
+                                </button>
+                            </div>
+                            <!-- チェックボックス付き資金項目リスト -->
+                            <div class="fund-item-list">
+                                <label v-for="fundItemName in actualFundItems" :key="fundItemName" class="fund-item-checkbox">
+                                    <input 
+                                        type="checkbox" 
+                                        :checked="isFundItemSelected(fundItemName)"
+                                        @change="toggleFundItem(fundItemName)"
+                                    >
+                                    <span class="checkmark"></span>
+                                    <span class="fund-item-name" v-text="fundItemName"></span>
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -76,7 +88,7 @@
                     <thead>
                         <tr>
                             <th @click="toggleDateSort" style="cursor: pointer;">日付 <span v-if="dateSortOrder === 'asc'">▲</span><span v-if="dateSortOrder === 'desc'">▼</span></th>
-                            <th v-if="selectedFundItem === 'すべて'">資金項目</th>
+                            <th v-if="selectedFundItemDisplay === 'すべて'">資金項目</th>
                             <th>項目</th>
                             <th>金額</th>
                             <th>残高</th>
@@ -85,7 +97,7 @@
                     <tbody>
                         <tr v-for="transaction in sortedTransactions" :key="transaction.id" @click="onEditTransaction(transaction)">
                             <td v-text="formatDateTime(transaction.date)"></td>
-                            <td v-if="selectedFundItem === 'すべて'" v-text="transaction.fundItem || transaction.account"></td>
+                            <td v-if="selectedFundItemDisplay === 'すべて'" v-text="transaction.fundItem || transaction.account"></td>
                             <td v-text="transaction.item"></td>
                             <td :class="getAmountCellClass(transaction.type)" v-text="formatAmount(transaction.amount, transaction.type)"></td>
                             <td v-text="formatCurrency(transaction.balance)"></td>
@@ -180,9 +192,26 @@
                 <h3 style="margin: 8px 0 12px 0; font-size: 1.3em;">残高推移グラフ</h3>
                 <div class="graph-filter-row" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                   <label style="white-space: nowrap; font-size: 0.95em;">資金項目：</label>
-                  <select v-model="graphFundItem" @change="renderBalanceChart" style="padding: 4px 8px;">
-                    <option v-for="item in fundItemNames" :key="item" :value="item" v-text="item"></option>
-                  </select>
+                  <div class="multi-select-wrapper" style="position: relative;" data-graph-fund-items>
+                    <button @click="toggleGraphFundItemDropdown" class="multi-select-button" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;">
+                      <span v-text="getGraphFundItemDisplayText()"></span> ▼
+                    </button>
+                    <div v-if="showGraphFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 1000;">
+                      <div style="padding: 4px;">
+                        <button @click="toggleAllGraphFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="graphFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
+                        </button>
+                      </div>
+                      <label v-for="item in actualFundItems" :key="item" style="display: block; padding: 2px 8px; cursor: pointer;">
+                        <input 
+                          type="checkbox" 
+                          :checked="graphFundItems.includes(item)"
+                          @change="toggleGraphFundItem(item)"
+                          style="margin-right: 4px;"
+                        >
+                        <span v-text="item"></span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
                 <div class="graph-filter-row" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                   <label style="white-space: nowrap; font-size: 0.95em;">表示単位：</label>
@@ -205,9 +234,26 @@
                 <h3 style="margin:8px 0 12px; font-size:1.3em;">収支比率グラフ</h3>
                 <div class="graph-filter-row" style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
                   <label style="white-space:nowrap; font-size:0.95em;">資金項目：</label>
-                  <select v-model="ratioFundItem" @change="renderRatioChart">
-                    <option v-for="item in fundItemNames" :key="item" :value="item" v-text="item"></option>
-                  </select>
+                  <div class="multi-select-wrapper" style="position: relative;" data-ratio-fund-items>
+                    <button @click="toggleRatioFundItemDropdown" class="multi-select-button" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;">
+                      <span v-text="getRatioFundItemDisplayText()"></span> ▼
+                    </button>
+                    <div v-if="showRatioFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 1000;">
+                      <div style="padding: 4px;">
+                        <button @click="toggleAllRatioFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="ratioFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
+                        </button>
+                      </div>
+                      <label v-for="item in actualFundItems" :key="item" style="display: block; padding: 2px 8px; cursor: pointer;">
+                        <input 
+                          type="checkbox" 
+                          :checked="ratioFundItems.includes(item)"
+                          @change="toggleRatioFundItem(item)"
+                          style="margin-right: 4px;"
+                        >
+                        <span v-text="item"></span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
                 <div style="display:flex; justify-content:center; align-items:center; width:100%; height:400px;">
                     <canvas id="ratioChart" style="max-width:400px; max-height:400px;"></canvas>
@@ -221,9 +267,26 @@
                 <h3 style="margin:8px 0 12px; font-size:1.3em;">項目別収支グラフ</h3>
                 <div class="graph-filter-row">
                   <label style="white-space:nowrap; font-size:0.95em;">資金項目：</label>
-                  <select v-model="itemizedFundItem" @change="renderItemizedCharts">
-                    <option v-for="item in fundItemNames" :key="item" :value="item" v-text="item"></option>
-                  </select>
+                  <div class="multi-select-wrapper" style="position: relative;" data-itemized-fund-items>
+                    <button @click="toggleItemizedFundItemDropdown" class="multi-select-button" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;">
+                      <span v-text="getItemizedFundItemDisplayText()"></span> ▼
+                    </button>
+                    <div v-if="showItemizedFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 1000;">
+                      <div style="padding: 4px;">
+                        <button @click="toggleAllItemizedFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="itemizedFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
+                        </button>
+                      </div>
+                      <label v-for="item in actualFundItems" :key="item" style="display: block; padding: 2px 8px; cursor: pointer;">
+                        <input 
+                          type="checkbox" 
+                          :checked="itemizedFundItems.includes(item)"
+                          @change="toggleItemizedFundItem(item)"
+                          style="margin-right: 4px;"
+                        >
+                        <span v-text="item"></span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
                 <div style="display:flex; gap:16px; flex-wrap:wrap; justify-content:center;">
                     <div style="width:45%; min-width:200px; height:300px;">

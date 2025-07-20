@@ -9,7 +9,7 @@ createApp({
             fundItemNames: [],
             itemNames: // 項目名リスト
             [],
-            selectedFundItem: 'すべて',
+            selectedFundItems: [], // 複数選択対応（空配列は全選択を意味）
             dateSortOrder: 'desc',
             showAccountDropdown: false,
             loading: true,
@@ -31,13 +31,16 @@ createApp({
             showGraph: false, // グラフモーダルの表示状態
             showRatioModal: false, // 収支比率モーダル表示状態
             showItemizedModal: false, // 項目別収支モーダル表示状態
+            showGraphFundItemDropdown: false, // グラフ用資金項目ドロップダウン表示状態
+            showRatioFundItemDropdown: false, // 収支比率用資金項目ドロップダウン表示状態
+            showItemizedFundItemDropdown: false, // 項目別収支用資金項目ドロップダウン表示状態
             ratioChartInstance: null, // 収支比率チャートインスタンス
             incomeItemChartInstance: null, // 収入項目別チャートインスタンス
             expenseItemChartInstance: null, // 支出項目別チャートインスタンス
-            graphFundItem: 'すべて', // グラフ用のフィルタ資金項目
+            graphFundItems: [], // グラフ用のフィルタ資金項目（複数選択対応）
             graphDisplayUnit: 'day', // グラフ表示単位: 'day','month','year'
-            ratioFundItem: 'すべて', // 収支比率用フィルタ資金項目
-            itemizedFundItem: 'すべて', // 項目別収支用フィルタ資金項目
+            ratioFundItems: [], // 収支比率用フィルタ資金項目（複数選択対応）
+            itemizedFundItems: [], // 項目別収支用フィルタ資金項目（複数選択対応）
         }
     },
     computed: {
@@ -45,13 +48,18 @@ createApp({
         filteredTransactions() {
             let filtered = this.transactions;
 
-            // 資金項目によるフィルタリング
-            if (this.selectedFundItem !== 'すべて') {
+            // 資金項目によるフィルタリング（複数選択対応）
+            if (this.selectedFundItems.length === 0) {
+                // 何も選択されていない場合は空の結果を返す
+                filtered = [];
+            } else if (this.selectedFundItems.length < this.actualFundItems.length) {
+                // 部分選択の場合のみフィルタリング
                 filtered = filtered.filter(tx => {
                     const fundItem = tx.fundItem || tx.account;
-                    return fundItem === this.selectedFundItem;
+                    return this.selectedFundItems.includes(fundItem);
                 });
             }
+            // 全選択の場合はフィルタリングしない（全て表示）
 
             // 検索クエリによるフィルタリング
             if (this.searchQuery.trim()) {
@@ -67,6 +75,20 @@ createApp({
             }
 
             return filtered;
+        },
+        // 選択された資金項目の表示名（デフォルトで全選択）
+        selectedFundItemDisplay() {
+            if (this.selectedFundItems.length === 0 || this.selectedFundItems.length === this.fundItemNames.filter(name => name !== 'すべて').length) {
+                return 'すべて';
+            } else if (this.selectedFundItems.length === 1) {
+                return this.selectedFundItems[0];
+            } else {
+                return `${this.selectedFundItems.length}項目選択中`;
+            }
+        },
+        // 実際の資金項目リスト（「すべて」を除く）
+        actualFundItems() {
+            return this.fundItemNames.filter(name => name !== 'すべて');
         },
         // 検索・フィルタリング結果に基づいて残高を再計算する
         transactionsWithRecalculatedBalance() {
@@ -149,10 +171,118 @@ createApp({
         toggleDateSort() {
             this.dateSortOrder = this.dateSortOrder === 'asc' ? 'desc' : 'asc';
         },
-        selectFundItem(fundItem) {
-            this.selectedFundItem = fundItem;
-            this.showAccountDropdown = false; // 選択したらドロップダウンを閉じる
+        toggleFundItem(fundItem) {
+            if (this.selectedFundItems.includes(fundItem)) {
+                // 選択済みの場合は削除
+                this.selectedFundItems = this.selectedFundItems.filter(item => item !== fundItem);
+            } else {
+                // 未選択の場合は追加
+                this.selectedFundItems.push(fundItem);
+            }
             this.loadTransactions(); // 資金項目変更時にデータを再読み込み
+        },
+        toggleAllFundItems() {
+            if (this.selectedFundItems.length === this.actualFundItems.length) {
+                // 全選択の場合は全解除
+                this.selectedFundItems = [];
+            } else {
+                // 部分選択の場合は全選択
+                this.selectedFundItems = [...this.actualFundItems];
+            }
+            this.loadTransactions();
+        },
+        isFundItemSelected(fundItem) {
+            return this.selectedFundItems.includes(fundItem);
+        },
+        // グラフ用資金項目の表示テキスト
+        getGraphFundItemDisplayText() {
+            if (this.graphFundItems.length === 0 || this.graphFundItems.length === this.actualFundItems.length) {
+                return 'すべて';
+            } else if (this.graphFundItems.length === 1) {
+                return this.graphFundItems[0];
+            } else {
+                return `${this.graphFundItems.length}項目選択中`;
+            }
+        },
+        // グラフ用資金項目のドロップダウン切り替え
+        toggleGraphFundItemDropdown() {
+            this.showGraphFundItemDropdown = !this.showGraphFundItemDropdown;
+        },
+        // グラフ用資金項目の個別切り替え
+        toggleGraphFundItem(fundItem) {
+            if (this.graphFundItems.includes(fundItem)) {
+                this.graphFundItems = this.graphFundItems.filter(item => item !== fundItem);
+            } else {
+                this.graphFundItems.push(fundItem);
+            }
+            this.renderBalanceChart();
+        },
+        // グラフ用資金項目の全選択/全解除
+        toggleAllGraphFundItems() {
+            if (this.graphFundItems.length === this.actualFundItems.length) {
+                this.graphFundItems = [];
+            } else {
+                this.graphFundItems = [...this.actualFundItems];
+            }
+            this.renderBalanceChart();
+        },
+        // 収支比率用資金項目の表示テキスト
+        getRatioFundItemDisplayText() {
+            if (this.ratioFundItems.length === 0 || this.ratioFundItems.length === this.actualFundItems.length) {
+                return 'すべて';
+            } else if (this.ratioFundItems.length === 1) {
+                return this.ratioFundItems[0];
+            } else {
+                return `${this.ratioFundItems.length}項目選択中`;
+            }
+        },
+        toggleRatioFundItemDropdown() {
+            this.showRatioFundItemDropdown = !this.showRatioFundItemDropdown;
+        },
+        toggleRatioFundItem(fundItem) {
+            if (this.ratioFundItems.includes(fundItem)) {
+                this.ratioFundItems = this.ratioFundItems.filter(item => item !== fundItem);
+            } else {
+                this.ratioFundItems.push(fundItem);
+            }
+            this.renderRatioChart();
+        },
+        toggleAllRatioFundItems() {
+            if (this.ratioFundItems.length === this.actualFundItems.length) {
+                this.ratioFundItems = [];
+            } else {
+                this.ratioFundItems = [...this.actualFundItems];
+            }
+            this.renderRatioChart();
+        },
+        // 項目別収支用資金項目の表示テキスト
+        getItemizedFundItemDisplayText() {
+            if (this.itemizedFundItems.length === 0 || this.itemizedFundItems.length === this.actualFundItems.length) {
+                return 'すべて';
+            } else if (this.itemizedFundItems.length === 1) {
+                return this.itemizedFundItems[0];
+            } else {
+                return `${this.itemizedFundItems.length}項目選択中`;
+            }
+        },
+        toggleItemizedFundItemDropdown() {
+            this.showItemizedFundItemDropdown = !this.showItemizedFundItemDropdown;
+        },
+        toggleItemizedFundItem(fundItem) {
+            if (this.itemizedFundItems.includes(fundItem)) {
+                this.itemizedFundItems = this.itemizedFundItems.filter(item => item !== fundItem);
+            } else {
+                this.itemizedFundItems.push(fundItem);
+            }
+            this.renderItemizedCharts();
+        },
+        toggleAllItemizedFundItems() {
+            if (this.itemizedFundItems.length === this.actualFundItems.length) {
+                this.itemizedFundItems = [];
+            } else {
+                this.itemizedFundItems = [...this.actualFundItems];
+            }
+            this.renderItemizedCharts();
         },
         toggleAccountDropdown() {
             this.showAccountDropdown = !this.showAccountDropdown;
@@ -173,6 +303,22 @@ createApp({
             if (fundItemGroup && !fundItemGroup.contains(event.target)) {
                 this.showFundItemDropdown = false;
             }
+
+            // グラフ用資金項目ドロップダウンのクリック外処理
+            const graphMultiSelect = event.target.closest('.multi-select-wrapper');
+            if (!graphMultiSelect || !event.target.closest('[data-graph-fund-items]')) {
+                this.showGraphFundItemDropdown = false;
+            }
+
+            // 収支比率用資金項目ドロップダウンのクリック外処理
+            if (!graphMultiSelect || !event.target.closest('[data-ratio-fund-items]')) {
+                this.showRatioFundItemDropdown = false;
+            }
+
+            // 項目別収支用資金項目ドロップダウンのクリック外処理
+            if (!graphMultiSelect || !event.target.closest('[data-itemized-fund-items]')) {
+                this.showItemizedFundItemDropdown = false;
+            }
         },
         async loadTransactions() {
             try {
@@ -180,9 +326,7 @@ createApp({
                 // 検索パラメータを構築
                 const params = new URLSearchParams();
                 // 検索とフィルタリングはフロントエンドで行うため、全データを取得
-                if (this.selectedFundItem !== 'すべて') {
-                    params.append('account', this.selectedFundItem); // バックエンドは'account'パラメータを期待
-                }
+                // 複数選択対応のため、常に全データを取得してフロントエンドでフィルタ
                 const url = `/api/transactions${params.toString() ? '?' + params.toString() : ''}`;
                 const response = await fetch(url);
                 if (!response.ok) {
@@ -205,6 +349,20 @@ createApp({
                 const fundItems = await response.json();
                 // 「すべて」を先頭に追加
                 this.fundItemNames = ['すべて', ...fundItems];
+                // デフォルトで全ての資金項目を選択状態にする
+                if (this.selectedFundItems.length === 0) {
+                    this.selectedFundItems = [...fundItems];
+                }
+                // グラフ等もデフォルトで全選択
+                if (this.graphFundItems.length === 0) {
+                    this.graphFundItems = [...fundItems];
+                }
+                if (this.ratioFundItems.length === 0) {
+                    this.ratioFundItems = [...fundItems];
+                }
+                if (this.itemizedFundItems.length === 0) {
+                    this.itemizedFundItems = [...fundItems];
+                }
             } catch (error) {
                 console.error('資金項目データの読み込みエラー:', error);
                 alert('資金項目データの読み込みに失敗しました。');
@@ -309,8 +467,18 @@ createApp({
             } catch (e) {
                 console.error('取引データ取得エラー:', e);
             }
-            // 選択中の資金項目でフィルタ
-            const filteredTxs = allTxs.filter(t => this.ratioFundItem === 'すべて' || ((t.fundItem || t.account) === this.ratioFundItem));
+            // 選択中の資金項目でフィルタ（複数選択対応）
+            let filteredTxs;
+            if (this.ratioFundItems.length === 0) {
+                // 何も選択されていない場合は空のデータ
+                filteredTxs = [];
+            } else if (this.ratioFundItems.length < this.actualFundItems.length) {
+                // 部分選択の場合のみフィルタリング
+                filteredTxs = allTxs.filter(t => this.ratioFundItems.includes(t.fundItem || t.account));
+            } else {
+                // 全選択の場合は全て表示
+                filteredTxs = allTxs;
+            }
             const totalIncome = filteredTxs.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
             const totalExpense = filteredTxs.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
             const data = {
@@ -328,8 +496,18 @@ createApp({
             try {
                 const res = await fetch('/api/transactions'); allTxs = await res.json();
             } catch (e) { console.error('取引データ取得エラー:', e); }
-            // filter by selected fund item
-            const filtered = allTxs.filter(t => this.itemizedFundItem === 'すべて' || ((t.fundItem||t.account) === this.itemizedFundItem));
+            // filter by selected fund item（複数選択対応）
+            let filtered;
+            if (this.itemizedFundItems.length === 0) {
+                // 何も選択されていない場合は空のデータ
+                filtered = [];
+            } else if (this.itemizedFundItems.length < this.actualFundItems.length) {
+                // 部分選択の場合のみフィルタリング
+                filtered = allTxs.filter(t => this.itemizedFundItems.includes(t.fundItem || t.account));
+            } else {
+                // 全選択の場合は全て表示
+                filtered = allTxs;
+            }
             // aggregate by item
             const incomeItems = {}, expenseItems = {};
             filtered.forEach(t => {
@@ -750,11 +928,16 @@ createApp({
                 canvas.style.width = w + 'px';
                 canvas.style.height = h + 'px';
             }
-            // 資金項目フィルタリングと残高再計算
+            // 資金項目フィルタリングと残高再計算（複数選択対応）
             let txsRaw;
-            if (this.graphFundItem && this.graphFundItem !== 'すべて') {
-                txsRaw = this.transactions.filter(tx => (tx.fundItem || tx.account) === this.graphFundItem);
+            if (this.graphFundItems.length === 0) {
+                // 何も選択されていない場合は空のデータ
+                txsRaw = [];
+            } else if (this.graphFundItems.length < this.actualFundItems.length) {
+                // 部分選択の場合のみフィルタリング
+                txsRaw = this.transactions.filter(tx => this.graphFundItems.includes(tx.fundItem || tx.account));
             } else {
+                // 全選択の場合は全て表示
                 txsRaw = [...this.transactions];
             }
             // 日付順にソート（古い順）
