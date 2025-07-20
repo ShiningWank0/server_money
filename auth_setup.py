@@ -60,6 +60,45 @@ def create_env_file():
     print("パスワードをハッシュ化しています...")
     password_hash = hash_password(password)
     
+    # ホストIP設定
+    print()
+    print("=== サーバーホストIP設定 ===")
+    print("⚠️  セキュリティ警告:")
+    print("   - 0.0.0.0: 全てのIPアドレスからアクセス可能（リスクあり）")
+    print("   - 127.0.0.1: ローカルホストのみアクセス可能（推奨）")
+    print("   - 特定IP: 指定したIPアドレスのみアクセス可能（高セキュリティ）")
+    print()
+    
+    while True:
+        host_ip = input("ホストIPアドレス（デフォルト: 127.0.0.1）: ").strip()
+        if not host_ip:
+            host_ip = "127.0.0.1"
+        
+        if host_ip == "0.0.0.0":
+            print("⚠️  注意: 0.0.0.0 を選択しました。")
+            print("   これにより、ネットワーク上の全てのデバイスからアクセス可能になります。")
+            print("   家計簿データが含まれるため、セキュリティリスクがあります。")
+            confirm = input("本当に続行しますか？ (y/N): ").strip().lower()
+            if confirm not in ['y', 'yes']:
+                continue
+        
+        # 簡単なIP形式チェック
+        ip_parts = host_ip.split('.')
+        if len(ip_parts) == 4:
+            try:
+                for part in ip_parts:
+                    if not (0 <= int(part) <= 255):
+                        raise ValueError
+                break
+            except ValueError:
+                print("❌ 無効なIPアドレス形式です")
+                continue
+        else:
+            print("❌ 無効なIPアドレス形式です")
+            continue
+    
+    print(f"ホストIP: {host_ip} に設定しました")
+    
     # SECRET_KEY生成
     secret_key = generate_secret_key()
     
@@ -73,6 +112,9 @@ LOGIN_PASSWORD_HASH={password_hash}
 
 # セッション設定
 SECRET_KEY={secret_key}
+
+# サーバー設定
+HOST_IP={host_ip}
 
 # アプリケーション設定
 ENVIRONMENT=production

@@ -78,8 +78,11 @@ def main():
         # データベースの初期化
         init_db(app)
         
-        app.logger.info("サーバーを起動します (host=0.0.0.0, port=4000)")
-        serve(app, host='0.0.0.0', port=4000)
+        # ホストIPを設定から取得
+        host_ip = app.config['HOST_IP']
+        
+        app.logger.info(f"サーバーを起動します (host={host_ip}, port=4000)")
+        serve(app, host=host_ip, port=4000)
         
     except KeyboardInterrupt:
         if 'app' in locals():
