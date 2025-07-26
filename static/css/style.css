@@ -1080,3 +1080,77 @@ body {
     z-index: 1000;
     margin-top: 2px;
 }
+
+/* グラフモーダル専用のオーバーレイ設定 */
+.modal-overlay {
+    padding: 0.5vh 0.25vw; /* 最小限のパディング */
+}
+.graph-modal-content {
+    max-width: 99.5vw;
+    width: 100vw;
+    min-width: 320px;
+    box-sizing: border-box;
+    margin: 0; /* マージンを削除 */
+}
+.graph-modal-xlarge {
+    max-width: 99.5vw;
+    width: 100vw;
+    min-width: 320px;
+    min-height: 500px;
+    height: 98vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    margin: 0; /* マージンを削除 */
+    padding: 8px 0 4px 0; /* パディングを最小限に */
+}
+.graph-filter-row {
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.graph-scroll-wrapper {
+    width: 100%;
+    max-width: calc(99.5vw - 15px); /* 99.5vw-20pxから99.5vw-15pxに変更 */
+    height: 92vh;
+    max-height: calc(98vh - 70px); /* マージンを調整 */
+    min-height: 350px;
+    overflow-x: auto;
+    overflow-y: auto;
+    background: #f8fafc;
+    border-radius: 8px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#balanceChart {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 800px; /* 600pxから800pxに拡大 */
+    min-height: 300px;
+    max-width: 3000px; /* 2400pxから3000pxに拡大 */
+    max-height: 2000px; /* 1800pxから2000pxに拡大 */
+    margin: 0 auto;
+}
+@media (max-width: 1200px) {
+    .graph-modal-xlarge { max-width: 99.5vw; height: 96vh; }
+    .graph-scroll-wrapper { max-width: calc(99.5vw - 15px); height: 88vh; max-height: calc(96vh - 70px); }
+}
+@media (max-width: 1000px) {
+    .graph-modal-xlarge { max-width: 100vw; height: 95vh; }
+    .graph-scroll-wrapper { max-width: calc(100vw - 15px); height: 85vh; max-height: calc(95vh - 70px); }
+}
+@media (max-width: 900px) {
+    .graph-modal-content, .graph-modal-xlarge { width: 100vw; max-width: 100vw; height: 92vh;}
+    .graph-scroll-wrapper { max-width: calc(100vw - 15px); height: 75vh; min-height: 200px; max-height: calc(92vh - 70px);}
+    #balanceChart { height: 100% !important; }
+}
+@media (max-width: 600px) {
+    .graph-modal-content, .graph-modal-xlarge { width: 100vw; max-width: 100vw; height: 88vh;}
+    .graph-scroll-wrapper { max-width: calc(100vw - 10px); height: 65vh; min-height: 150px; max-height: calc(88vh - 60px);}
+    #balanceChart { height: 100% !important; }
+}
