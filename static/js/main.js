@@ -38,6 +38,12 @@ createApp({
             incomeItemChartInstance: null, // 収入項目別チャートインスタンス
             expenseItemChartInstance: null, // 支出項目別チャートインスタンス
             graphDisplayUnit: 'day', // グラフ表示単位: 'day','month','year'
+            ratioDisplayUnit: 'all', // 収支比率グラフ表示単位: 'all','day','month','year'
+            itemizedDisplayUnit: 'all', // 項目別収支グラフ表示単位: 'all','day','month','year'
+            ratioCurrentDate: new Date(), // 収支比率グラフの現在選択日付
+            itemizedCurrentDate: new Date(), // 項目別収支グラフの現在選択日付
+            ratioAvailablePeriods: [], // 収支比率グラフで利用可能な期間リスト
+            itemizedAvailablePeriods: [], // 項目別収支グラフで利用可能な期間リスト
         }
     },
     computed: {
@@ -86,6 +92,32 @@ createApp({
         // 実際の資金項目リスト（「すべて」を除く）
         actualFundItems() {
             return this.fundItemNames.filter(name => name !== 'すべて');
+        },
+        // 収支比率グラフの現在期間表示
+        ratioCurrentPeriodDisplay() {
+            if (this.ratioDisplayUnit === 'all') return '';
+            const date = this.ratioCurrentDate;
+            if (this.ratioDisplayUnit === 'year') {
+                return `${date.getFullYear()}年`;
+            } else if (this.ratioDisplayUnit === 'month') {
+                return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+            } else if (this.ratioDisplayUnit === 'day') {
+                return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+            }
+            return '';
+        },
+        // 項目別収支グラフの現在期間表示
+        itemizedCurrentPeriodDisplay() {
+            if (this.itemizedDisplayUnit === 'all') return '';
+            const date = this.itemizedCurrentDate;
+            if (this.itemizedDisplayUnit === 'year') {
+                return `${date.getFullYear()}年`;
+            } else if (this.itemizedDisplayUnit === 'month') {
+                return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+            } else if (this.itemizedDisplayUnit === 'day') {
+                return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+            }
+            return '';
         },
         // 検索・フィルタリング結果に基づいて残高を再計算する
         transactionsWithRecalculatedBalance() {
@@ -219,6 +251,41 @@ createApp({
         isFundItemSelected(fundItem) {
             return this.selectedFundItems.includes(fundItem);
         },
+        // 全取引データから利用可能な期間リストを生成
+        async generateAvailablePeriods(displayUnit) {
+            try {
+                const response = await fetch('/api/transactions');
+                const allTransactions = await response.json();
+                
+                // 資金項目でフィルタリング
+                let filteredTxs;
+                if (this.selectedFundItems.length === 0) {
+                    filteredTxs = [];
+                } else if (this.selectedFundItems.length < this.actualFundItems.length) {
+                    filteredTxs = allTransactions.filter(t => this.selectedFundItems.includes(t.fundItem || t.account));
+                } else {
+                    filteredTxs = allTransactions;
+                }
+                
+                const periodsSet = new Set();
+                filteredTxs.forEach(tx => {
+                    const date = new Date(tx.date);
+                    let periodKey;
+                    if (displayUnit === 'year') {
+                        periodKey = `${date.getFullYear()}`;
+                    } else if (displayUnit === 'month') {
+                        periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                    } else if (displayUnit === 'day') {
+                        periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                    }
+                    if (periodKey) periodsSet.add(periodKey);
+                });
+                
+                return Array.from(periodsSet).sort();
+            } catch (error) {
+                return [];
+            }
+        },
         // グラフ用資金項目の表示テキスト（統一された選択を使用）
         getGraphFundItemDisplayText() {
             return this.selectedFundItemDisplay;
@@ -266,6 +333,110 @@ createApp({
         toggleAllItemizedFundItems() {
             this.toggleAllFundItems();
             this.renderItemizedCharts();
+        },
+        // 収支比率グラフの期間単位変更時の処理
+        async onRatioDisplayUnitChange() {
+            if (this.ratioDisplayUnit !== 'all') {
+                this.ratioAvailablePeriods = await this.generateAvailablePeriods(this.ratioDisplayUnit);
+                if (this.ratioAvailablePeriods.length > 0) {
+                    // 最新の期間を選択
+                    const latestPeriod = this.ratioAvailablePeriods[this.ratioAvailablePeriods.length - 1];
+                    this.setCurrentDateFromPeriod(latestPeriod, this.ratioDisplayUnit, 'ratio');
+                }
+            }
+            this.renderRatioChart();
+        },
+        // 項目別収支グラフの期間単位変更時の処理
+        async onItemizedDisplayUnitChange() {
+            if (this.itemizedDisplayUnit !== 'all') {
+                this.itemizedAvailablePeriods = await this.generateAvailablePeriods(this.itemizedDisplayUnit);
+                if (this.itemizedAvailablePeriods.length > 0) {
+                    // 最新の期間を選択
+                    const latestPeriod = this.itemizedAvailablePeriods[this.itemizedAvailablePeriods.length - 1];
+                    this.setCurrentDateFromPeriod(latestPeriod, this.itemizedDisplayUnit, 'itemized');
+                }
+            }
+            this.renderItemizedCharts();
+        },
+        // 期間文字列から日付オブジェクトを設定
+        setCurrentDateFromPeriod(periodStr, displayUnit, chartType) {
+            let date;
+            if (displayUnit === 'year') {
+                date = new Date(parseInt(periodStr), 0, 1);
+            } else if (displayUnit === 'month') {
+                const [year, month] = periodStr.split('-');
+                date = new Date(parseInt(year), parseInt(month) - 1, 1);
+            } else if (displayUnit === 'day') {
+                const [year, month, day] = periodStr.split('-');
+                date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            } else {
+                date = new Date();
+            }
+            
+            if (chartType === 'ratio') {
+                this.ratioCurrentDate = date;
+            } else {
+                this.itemizedCurrentDate = date;
+            }
+        },
+        // 収支比率グラフの期間移動
+        async navigateRatioPeriod(direction) {
+            if (this.ratioAvailablePeriods.length === 0) return;
+            
+            const currentPeriodStr = this.getCurrentPeriodString(this.ratioCurrentDate, this.ratioDisplayUnit);
+            const currentIndex = this.ratioAvailablePeriods.indexOf(currentPeriodStr);
+            const newIndex = currentIndex + direction;
+            
+            if (newIndex >= 0 && newIndex < this.ratioAvailablePeriods.length) {
+                const newPeriod = this.ratioAvailablePeriods[newIndex];
+                this.setCurrentDateFromPeriod(newPeriod, this.ratioDisplayUnit, 'ratio');
+                this.renderRatioChart();
+            }
+        },
+        // 項目別収支グラフの期間移動
+        async navigateItemizedPeriod(direction) {
+            if (this.itemizedAvailablePeriods.length === 0) return;
+            
+            const currentPeriodStr = this.getCurrentPeriodString(this.itemizedCurrentDate, this.itemizedDisplayUnit);
+            const currentIndex = this.itemizedAvailablePeriods.indexOf(currentPeriodStr);
+            const newIndex = currentIndex + direction;
+            
+            if (newIndex >= 0 && newIndex < this.itemizedAvailablePeriods.length) {
+                const newPeriod = this.itemizedAvailablePeriods[newIndex];
+                this.setCurrentDateFromPeriod(newPeriod, this.itemizedDisplayUnit, 'itemized');
+                this.renderItemizedCharts();
+            }
+        },
+        // 日付から期間文字列を取得
+        getCurrentPeriodString(date, displayUnit) {
+            if (displayUnit === 'year') {
+                return `${date.getFullYear()}`;
+            } else if (displayUnit === 'month') {
+                return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            } else if (displayUnit === 'day') {
+                return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            }
+            return '';
+        },
+        // 収支比率グラフの期間移動可否判定
+        canNavigateRatioPeriod(direction) {
+            if (this.ratioAvailablePeriods.length === 0) return false;
+            
+            const currentPeriodStr = this.getCurrentPeriodString(this.ratioCurrentDate, this.ratioDisplayUnit);
+            const currentIndex = this.ratioAvailablePeriods.indexOf(currentPeriodStr);
+            const newIndex = currentIndex + direction;
+            
+            return newIndex >= 0 && newIndex < this.ratioAvailablePeriods.length;
+        },
+        // 項目別収支グラフの期間移動可否判定
+        canNavigateItemizedPeriod(direction) {
+            if (this.itemizedAvailablePeriods.length === 0) return false;
+            
+            const currentPeriodStr = this.getCurrentPeriodString(this.itemizedCurrentDate, this.itemizedDisplayUnit);
+            const currentIndex = this.itemizedAvailablePeriods.indexOf(currentPeriodStr);
+            const newIndex = currentIndex + direction;
+            
+            return newIndex >= 0 && newIndex < this.itemizedAvailablePeriods.length;
         },
         toggleAccountDropdown() {
             this.showAccountDropdown = !this.showAccountDropdown;
@@ -431,7 +602,20 @@ createApp({
                 this.ratioChartInstance.destroy();
                 this.ratioChartInstance = null;
             }
-            const ctx = document.getElementById('ratioChart').getContext('2d');
+            // canvasサイズを円グラフに適したサイズに調整
+            const wrapper = document.querySelector('.graph-scroll-wrapper');
+            const canvas = document.getElementById('ratioChart');
+            if (wrapper && canvas) {
+                const availableWidth = Math.max(wrapper.clientWidth - 30, 400);
+                const availableHeight = Math.max(wrapper.clientHeight - 30, 300);
+                // 円グラフは正方形が理想的なので、幅と高さの小さい方を基準にサイズを決定
+                const size = Math.min(availableWidth, availableHeight);
+                canvas.width = size;
+                canvas.height = size;
+                canvas.style.width = size + 'px';
+                canvas.style.height = size + 'px';
+            }
+            const ctx = canvas.getContext('2d');
             // 全取引を再取得
             let allTxs = [];
             try {
@@ -452,18 +636,73 @@ createApp({
                 // 全選択の場合は全て表示
                 filteredTxs = allTxs;
             }
+            
+            // 期間選択に基づいてデータをさらにフィルタ
+            if (this.ratioDisplayUnit !== 'all') {
+                const selectedDate = this.ratioCurrentDate;
+                const selectedYear = selectedDate.getFullYear();
+                const selectedMonth = selectedDate.getMonth();
+                const selectedDay = selectedDate.getDate();
+                
+                filteredTxs = filteredTxs.filter(t => {
+                    const txDate = new Date(t.date);
+                    if (this.ratioDisplayUnit === 'year') {
+                        return txDate.getFullYear() === selectedYear;
+                    } else if (this.ratioDisplayUnit === 'month') {
+                        return txDate.getFullYear() === selectedYear && txDate.getMonth() === selectedMonth;
+                    } else if (this.ratioDisplayUnit === 'day') {
+                        return txDate.getFullYear() === selectedYear && 
+                               txDate.getMonth() === selectedMonth && 
+                               txDate.getDate() === selectedDay;
+                    }
+                    return true;
+                });
+            }
+            
             const totalIncome = filteredTxs.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
             const totalExpense = filteredTxs.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
             const data = {
                 labels: ['収入','支出'],
                 datasets: [{ data:[totalIncome,totalExpense], backgroundColor:['#4caf50','#f44336'] }]
             };
-            this.ratioChartInstance = new Chart(ctx, { type:'pie', data });
+            const options = {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: 1, // 正方形を強制
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            };
+            this.ratioChartInstance = new Chart(ctx, { type:'pie', data, options });
         },
         async renderItemizedCharts() {
             // destroy existing
             if (this.incomeItemChartInstance) { this.incomeItemChartInstance.destroy(); this.incomeItemChartInstance = null; }
             if (this.expenseItemChartInstance) { this.expenseItemChartInstance.destroy(); this.expenseItemChartInstance = null; }
+            // canvasサイズを2つの円グラフに適したサイズに調整
+            const wrapper = document.querySelector('.graph-scroll-wrapper');
+            const incomeCanvas = document.getElementById('incomeItemChart');
+            const expenseCanvas = document.getElementById('expenseItemChart');
+            if (wrapper && incomeCanvas && expenseCanvas) {
+                const totalWidth = Math.max(wrapper.clientWidth - 60, 600);
+                const totalHeight = Math.max(wrapper.clientHeight - 80, 300); // タイトル分の高さを考慮
+                
+                // 2つの円グラフを横並びにするため、利用可能幅を半分に分割
+                const availableWidthPerChart = Math.floor(totalWidth / 2);
+                const availableHeight = totalHeight;
+                
+                // 各円グラフは正方形が理想的なので、各グラフの幅と高さの小さい方を基準にサイズを決定
+                const sizePerChart = Math.min(availableWidthPerChart, availableHeight);
+                
+                [incomeCanvas, expenseCanvas].forEach(canvas => {
+                    canvas.width = sizePerChart;
+                    canvas.height = sizePerChart;
+                    canvas.style.width = sizePerChart + 'px';
+                    canvas.style.height = sizePerChart + 'px';
+                });
+            }
             // fetch fresh transactions
             let allTxs = [];
             try {
@@ -481,6 +720,28 @@ createApp({
                 // 全選択の場合は全て表示
                 filtered = allTxs;
             }
+            
+            // 期間選択に基づいてデータをさらにフィルタ
+            if (this.itemizedDisplayUnit !== 'all') {
+                const selectedDate = this.itemizedCurrentDate;
+                const selectedYear = selectedDate.getFullYear();
+                const selectedMonth = selectedDate.getMonth();
+                const selectedDay = selectedDate.getDate();
+                
+                filtered = filtered.filter(t => {
+                    const txDate = new Date(t.date);
+                    if (this.itemizedDisplayUnit === 'year') {
+                        return txDate.getFullYear() === selectedYear;
+                    } else if (this.itemizedDisplayUnit === 'month') {
+                        return txDate.getFullYear() === selectedYear && txDate.getMonth() === selectedMonth;
+                    } else if (this.itemizedDisplayUnit === 'day') {
+                        return txDate.getFullYear() === selectedYear && 
+                               txDate.getMonth() === selectedMonth && 
+                               txDate.getDate() === selectedDay;
+                    }
+                    return true;
+                });
+            }
             // aggregate by item
             const incomeItems = {}, expenseItems = {};
             filtered.forEach(t => {
@@ -495,16 +756,31 @@ createApp({
             const inData = inEntries.map(([_, val]) => val);
             const exLabels = exEntries.map(([key]) => key);
             const exData = exEntries.map(([_, val]) => val);
-            // draw charts without legend
+            // draw charts with proper aspect ratio
+            const chartOptions = { 
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: 1, // 正方形を強制
+                plugins: { 
+                    legend: { 
+                        display: false // レジェンド非表示、ホバー時のツールチップは維持
+                    },
+                    tooltip: {
+                        enabled: true // ホバー時のツールチップを有効
+                    }
+                } 
+            };
             const ctxIn = document.getElementById('incomeItemChart').getContext('2d');
             this.incomeItemChartInstance = new Chart(ctxIn, {
-                type:'doughnut', data:{ labels:inLabels, datasets:[{ data:inData, backgroundColor:inLabels.map((_,i)=>`hsl(${i*40%360},70%,50%)`)}]},
-                options:{ plugins:{ legend:{ display:false } } }
+                type:'doughnut', 
+                data:{ labels:inLabels, datasets:[{ data:inData, backgroundColor:inLabels.map((_,i)=>`hsl(${i*40%360},70%,50%)`)}]},
+                options: chartOptions
             });
             const ctxEx = document.getElementById('expenseItemChart').getContext('2d');
             this.expenseItemChartInstance = new Chart(ctxEx, {
-                type:'doughnut', data:{ labels:exLabels, datasets:[{ data:exData, backgroundColor:exLabels.map((_,i)=>`hsl(${i*40%360},70%,50%)`)}]},
-                options:{ plugins:{ legend:{ display:false } } }
+                type:'doughnut',
+                data:{ labels:exLabels, datasets:[{ data:exData, backgroundColor:exLabels.map((_,i)=>`hsl(${i*40%360},70%,50%)`)}]},
+                options: chartOptions
             });
         },
         onSearchInput() {

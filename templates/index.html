@@ -197,7 +197,7 @@
                     <button @click="toggleGraphFundItemDropdown" class="multi-select-button" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;">
                       <span v-text="getGraphFundItemDisplayText()"></span> ▼
                     </button>
-                    <div v-if="showGraphFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 1000;">
+                    <div v-if="showGraphFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 2000;">
                       <div style="padding: 4px;">
                         <button @click="toggleAllGraphFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="selectedFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
                         </button>
@@ -216,7 +216,7 @@
                 </div>
                 <div class="graph-filter-row" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                   <label style="white-space: nowrap; font-size: 0.95em;">表示単位：</label>
-                  <select v-model="graphDisplayUnit" @change="renderBalanceChart" style="padding: 4px 8px;">
+                  <select v-model="graphDisplayUnit" @change="renderBalanceChart" style="padding: 4px 8px; z-index: 100; position: relative;">
                     <option value="day">日</option>
                     <option value="month">月</option>
                     <option value="year">年</option>
@@ -231,15 +231,15 @@
 
         <!-- 収支比率グラフモーダル -->
         <div v-if="showRatioModal" class="modal-overlay" @click="hideRatioModal">
-            <div class="modal-content" @click.stop style="max-width:600px; width:90vw;">
-                <h3 style="margin:8px 0 12px; font-size:1.3em;">収支比率グラフ</h3>
-                <div class="graph-filter-row" style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-                  <label style="white-space:nowrap; font-size:0.95em;">資金項目：</label>
+            <div class="modal-content graph-modal-content graph-modal-xlarge" @click.stop>
+                <h3 style="margin: 8px 0 12px 0; font-size: 1.3em;">収支比率グラフ</h3>
+                <div class="graph-filter-row" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                  <label style="white-space: nowrap; font-size: 0.95em;">資金項目：</label>
                   <div class="multi-select-wrapper" style="position: relative;" data-ratio-fund-items>
                     <button @click="toggleRatioFundItemDropdown" class="multi-select-button" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;">
                       <span v-text="getRatioFundItemDisplayText()"></span> ▼
                     </button>
-                    <div v-if="showRatioFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 1000;">
+                    <div v-if="showRatioFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 2000;">
                       <div style="padding: 4px;">
                         <button @click="toggleAllRatioFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="selectedFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
                         </button>
@@ -256,23 +256,39 @@
                     </div>
                   </div>
                 </div>
-                <div style="display:flex; justify-content:center; align-items:center; width:100%; height:400px;">
-                    <canvas id="ratioChart" style="max-width:400px; max-height:400px;"></canvas>
+                <div class="graph-filter-row" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; justify-content: center;">
+                  <label style="white-space: nowrap; font-size: 0.95em;">表示期間：</label>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <button v-if="ratioDisplayUnit !== 'all'" @click="navigateRatioPeriod(-1)" :disabled="!canNavigateRatioPeriod(-1)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;" :style="{ opacity: canNavigateRatioPeriod(-1) ? 1 : 0.5 }">◀</button>
+                    <select v-model="ratioDisplayUnit" @change="onRatioDisplayUnitChange" style="padding: 4px 8px; z-index: 100; position: relative;">
+                      <option value="all">全期間</option>
+                      <option value="day">日別</option>
+                      <option value="month">月別</option>
+                      <option value="year">年別</option>
+                    </select>
+                    <button v-if="ratioDisplayUnit !== 'all'" @click="navigateRatioPeriod(1)" :disabled="!canNavigateRatioPeriod(1)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;" :style="{ opacity: canNavigateRatioPeriod(1) ? 1 : 0.5 }">▶</button>
+                  </div>
                 </div>
-                <button class="cancel-btn" @click="hideRatioModal" style="margin-top:8px; padding:6px 16px;">閉じる</button>
+                <div v-if="ratioCurrentPeriodDisplay" style="text-align: center; margin-bottom: 12px; font-size: 1.1em; font-weight: bold; color: #333;">
+                  {{ ratioCurrentPeriodDisplay }}
+                </div>
+                <div class="graph-scroll-wrapper">
+                  <canvas id="ratioChart"></canvas>
+                </div>
+                <button class="cancel-btn" @click="hideRatioModal" style="margin-top: 8px; padding: 6px 16px;">閉じる</button>
             </div>
         </div>
         <!-- 項目別収支グラフモーダル -->
         <div v-if="showItemizedModal" class="modal-overlay" @click="hideItemizedModal">
-            <div class="modal-content" @click.stop style="max-width:600px;">
-                <h3 style="margin:8px 0 12px; font-size:1.3em;">項目別収支グラフ</h3>
-                <div class="graph-filter-row">
-                  <label style="white-space:nowrap; font-size:0.95em;">資金項目：</label>
+            <div class="modal-content graph-modal-content graph-modal-xlarge" @click.stop>
+                <h3 style="margin: 8px 0 12px 0; font-size: 1.3em;">項目別収支グラフ</h3>
+                <div class="graph-filter-row" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                  <label style="white-space: nowrap; font-size: 0.95em;">資金項目：</label>
                   <div class="multi-select-wrapper" style="position: relative;" data-itemized-fund-items>
                     <button @click="toggleItemizedFundItemDropdown" class="multi-select-button" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;">
                       <span v-text="getItemizedFundItemDisplayText()"></span> ▼
                     </button>
-                    <div v-if="showItemizedFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 1000;">
+                    <div v-if="showItemizedFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 2000;">
                       <div style="padding: 4px;">
                         <button @click="toggleAllItemizedFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="selectedFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
                         </button>
@@ -289,17 +305,35 @@
                     </div>
                   </div>
                 </div>
-                <div style="display:flex; gap:16px; flex-wrap:wrap; justify-content:center;">
-                    <div style="width:45%; min-width:200px; height:300px;">
-                        <h4 style="text-align:center;">収入項目別</h4>
-                        <canvas id="incomeItemChart"></canvas>
-                    </div>
-                    <div style="width:45%; min-width:200px; height:300px;">
-                        <h4 style="text-align:center;">支出項目別</h4>
-                        <canvas id="expenseItemChart"></canvas>
-                    </div>
+                <div class="graph-filter-row" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; justify-content: center;">
+                  <label style="white-space: nowrap; font-size: 0.95em;">表示期間：</label>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <button v-if="itemizedDisplayUnit !== 'all'" @click="navigateItemizedPeriod(-1)" :disabled="!canNavigateItemizedPeriod(-1)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;" :style="{ opacity: canNavigateItemizedPeriod(-1) ? 1 : 0.5 }">◀</button>
+                    <select v-model="itemizedDisplayUnit" @change="onItemizedDisplayUnitChange" style="padding: 4px 8px; z-index: 100; position: relative;">
+                      <option value="all">全期間</option>
+                      <option value="day">日別</option>
+                      <option value="month">月別</option>
+                      <option value="year">年別</option>
+                    </select>
+                    <button v-if="itemizedDisplayUnit !== 'all'" @click="navigateItemizedPeriod(1)" :disabled="!canNavigateItemizedPeriod(1)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;" :style="{ opacity: canNavigateItemizedPeriod(1) ? 1 : 0.5 }">▶</button>
+                  </div>
                 </div>
-                <button class="cancel-btn" @click="hideItemizedModal" style="margin-top:8px; padding:6px 16px;">閉じる</button>
+                <div v-if="itemizedCurrentPeriodDisplay" style="text-align: center; margin-bottom: 12px; font-size: 1.1em; font-weight: bold; color: #333;">
+                  {{ itemizedCurrentPeriodDisplay }}
+                </div>
+                <div class="graph-scroll-wrapper">
+                  <div style="display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; width: 100%; height: 100%;">
+                      <div style="width: 45%; min-width: 400px; height: 100%;">
+                          <h4 style="text-align: center; margin: 8px 0;">収入項目別</h4>
+                          <canvas id="incomeItemChart" style="width: 100%; height: calc(100% - 40px);"></canvas>
+                      </div>
+                      <div style="width: 45%; min-width: 400px; height: 100%;">
+                          <h4 style="text-align: center; margin: 8px 0;">支出項目別</h4>
+                          <canvas id="expenseItemChart" style="width: 100%; height: calc(100% - 40px);"></canvas>
+                      </div>
+                  </div>
+                </div>
+                <button class="cancel-btn" @click="hideItemizedModal" style="margin-top: 8px; padding: 6px 16px;">閉じる</button>
             </div>
         </div>
     </div>
