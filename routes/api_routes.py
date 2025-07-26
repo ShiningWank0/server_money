@@ -394,6 +394,48 @@ def download_log():
         current_app.logger.error(f"ログファイルダウンロードでエラーが発生しました: {str(e)}", exc_info=True)
         return jsonify({'error': f'ログファイルダウンロードに失敗しました: {str(e)}'}), 500
 
+@api_bp.route("/api/log", methods=['POST'])
+@login_required
+def log_from_frontend():
+    """フロントエンドからのログメッセージを受信してログファイルに記録するAPI"""
+    from flask import current_app
+    
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'ログデータが必要です'}), 400
+        
+        level = data.get('level', 'info').lower()
+        message = data.get('message', '')
+        component = data.get('component', 'frontend')
+        
+        if not message:
+            return jsonify({'error': 'ログメッセージが必要です'}), 400
+        
+        # フロントエンドからのログメッセージをフォーマット
+        formatted_message = f"[JS:{component}] {message}"
+        
+        # ログレベルに応じてログ出力
+        if level == 'debug':
+            current_app.logger.debug(formatted_message)
+        elif level == 'info':
+            current_app.logger.info(formatted_message)
+        elif level == 'warning' or level == 'warn':
+            current_app.logger.warning(formatted_message)
+        elif level == 'error':
+            current_app.logger.error(formatted_message)
+        elif level == 'critical':
+            current_app.logger.critical(formatted_message)
+        else:
+            current_app.logger.info(formatted_message)
+        
+        return jsonify({'status': 'logged'}), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"フロントエンドログ記録エラー: {str(e)}", exc_info=True)
+        return jsonify({'error': 'ログ記録に失敗しました'}), 500
+
 def _recalculate_balance_for_account(account):
     """指定口座の残高を再計算する内部関数
     

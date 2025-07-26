@@ -258,6 +258,25 @@
             const loadingSpinner = document.getElementById('loadingSpinner');
             const loginButtonText = document.getElementById('loginButtonText');
             
+            // ログ送信関数
+            async function logMessage(level, message, component = 'login') {
+                try {
+                    await fetch('/api/log', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            level: level,
+                            message: message,
+                            component: component
+                        })
+                    });
+                } catch (error) {
+                    // ログ送信に失敗した場合は無視（無限ループを防ぐため）
+                }
+            }
+            
             function showError(message) {
                 errorMessage.textContent = message;
                 errorMessage.style.display = 'block';
@@ -316,6 +335,7 @@
                     
                     if (response.ok && data.success) {
                         // ログイン成功
+                        logMessage('info', 'ユーザーがログインしました');
                         loginButtonText.textContent = 'ログイン成功！';
                         setTimeout(() => {
                             window.location.href = data.redirect || '/';
@@ -333,7 +353,7 @@
                         document.getElementById('password').focus();
                     }
                 } catch (error) {
-                    console.error('Login error:', error);
+                    logMessage('error', 'Login error: ' + error.toString());
                     showError('ネットワークエラーが発生しました。再度お試しください。');
                 } finally {
                     setLoading(false);

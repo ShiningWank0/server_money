@@ -228,6 +228,24 @@ createApp({
         }
     },
     methods: {
+        // ログ送信メソッド
+        async logMessage(level, message, component = 'app') {
+            try {
+                await fetch('/api/log', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        level: level,
+                        message: message,
+                        component: component
+                    })
+                });
+            } catch (error) {
+                // ログ送信に失敗した場合は無視（無限ループを防ぐため）
+            }
+        },
         // ウィンドウリサイズ時のグラフ再描画処理
         handleWindowResize() {
             // デバウンス処理でリサイズイベントの頻度を制限
@@ -270,6 +288,7 @@ createApp({
                     const parsed = JSON.parse(savedSelection);
                     if (Array.isArray(parsed)) {
                         this.selectedFundItems = parsed;
+                        this.logMessage('debug', `資金項目選択状態を復元しました: ${parsed.length}件`, 'session');
                         return true;
                     }
                 }
@@ -282,6 +301,7 @@ createApp({
         saveSelectedFundItemsToSession() {
             try {
                 sessionStorage.setItem('selectedFundItems', JSON.stringify(this.selectedFundItems));
+                this.logMessage('debug', `資金項目選択状態を保存しました: ${this.selectedFundItems.length}件`, 'session');
             } catch (error) {
                 // セッションストレージエラーは無視
             }
@@ -325,6 +345,7 @@ createApp({
             }
             // 選択状態をセッションストレージに保存
             this.saveSelectedFundItemsToSession();
+            this.logMessage('debug', `資金項目選択を変更しました: ${fundItem} (総数: ${this.selectedFundItems.length}件)`, 'ui');
             this.loadTransactions(); // 資金項目変更時にデータを再読み込み
         },
         toggleAllFundItems() {
@@ -337,6 +358,8 @@ createApp({
             }
             // 選択状態をセッションストレージに保存
             this.saveSelectedFundItemsToSession();
+            const action = this.selectedFundItems.length === this.actualFundItems.length ? '全選択' : '全解除';
+            this.logMessage('debug', `資金項目を${action}しました (総数: ${this.selectedFundItems.length}件)`, 'ui');
             this.loadTransactions();
         },
         isFundItemSelected(fundItem) {
@@ -583,8 +606,9 @@ createApp({
                 this.transactions = await response.json();
                 // 取引データ読み込み後に最新日付を更新
                 this.updateLatestDataDates();
+                this.logMessage('info', `取引データを読み込みました: ${this.transactions.length}件`, 'transactions');
             } catch (error) {
-                console.error('取引データの読み込みエラー:', error);
+                this.logMessage('error', '取引データの読み込みエラー: ' + error.toString(), 'transactions');
                 alert('データの読み込みに失敗しました。');
             } finally {
                 this.loading = false;
@@ -599,12 +623,13 @@ createApp({
                 const fundItems = await response.json();
                 // 「すべて」を先頭に追加
                 this.fundItemNames = ['すべて', ...fundItems];
+                this.logMessage('info', `資金項目データを読み込みました: ${fundItems.length}件`, 'accounts');
                 // セッションストレージから選択状態を復元、失敗時はデフォルトで全選択
                 if (!this.loadSelectedFundItemsFromSession()) {
                     this.selectedFundItems = [...fundItems];
                 }
             } catch (error) {
-                console.error('資金項目データの読み込みエラー:', error);
+                this.logMessage('error', '資金項目データの読み込みエラー: ' + error.toString(), 'accounts');
                 alert('資金項目データの読み込みに失敗しました。');
                 // エラーの場合はデフォルト値を設定
                 this.fundItemNames = ['すべて'];
@@ -622,8 +647,10 @@ createApp({
                 }
                 const items = await response.json();
                 this.itemNames = items;
+                const accountInfo = account ? `(資金項目: ${account})` : '(全体)';
+                this.logMessage('info', `項目データを読み込みました: ${items.length}件 ${accountInfo}`, 'items');
             } catch (error) {
-                console.error('項目データの読み込みエラー:', error);
+                this.logMessage('error', '項目データの読み込みエラー: ' + error.toString(), 'items');
                 this.itemNames = [];
             }
         },
@@ -647,9 +674,10 @@ createApp({
                 a.click();
                 a.remove();
                 window.URL.revokeObjectURL(url);
+                this.logMessage('info', `CSVバックアップをダウンロードしました: ${filename}`, 'backup');
                 this.showMenu = false;
             } catch (error) {
-                console.error('CSVバックアップエラー:', error);
+                this.logMessage('error', 'CSVバックアップエラー: ' + error.toString(), 'backup');
                 alert('バックアップに失敗しました。');
             }
         },
@@ -674,24 +702,36 @@ createApp({
                 a.click();
                 a.remove();
                 window.URL.revokeObjectURL(url);
+                this.logMessage('info', `ログファイルをダウンロードしました: ${filename}`, 'log-download');
                 this.showMenu = false;
             } catch (error) {
-                console.error('ログファイルダウンロードエラー:', error);
+                this.logMessage('error', 'ログファイルダウンロードエラー: ' + error.toString(), 'log-download');
                 alert('ログファイルのダウンロードに失敗しました: ' + error.message);
             }
         },
         openRatioModal() {
             this.showMenu = false;
             this.showRatioModal = true;
+            this.logMessage('info', '収支比率グラフモーダルを表示しました', 'ui');
             this.$nextTick(() => { this.renderRatioChart(); });
         },
-        hideRatioModal() { this.showRatioModal = false; if (this.ratioChartInstance) this.ratioChartInstance.destroy(); },
+        hideRatioModal() { 
+            this.showRatioModal = false; 
+            if (this.ratioChartInstance) this.ratioChartInstance.destroy(); 
+            this.logMessage('debug', '収支比率グラフモーダルを閉じました', 'ui');
+        },
         openItemizedModal() {
             this.showMenu = false;
             this.showItemizedModal = true;
+            this.logMessage('info', '項目別収支グラフモーダルを表示しました', 'ui');
             this.$nextTick(() => { this.renderItemizedCharts(); });
         },
-        hideItemizedModal() { this.showItemizedModal = false; if (this.incomeItemChartInstance) this.incomeItemChartInstance.destroy(); if (this.expenseItemChartInstance) this.expenseItemChartInstance.destroy(); },
+        hideItemizedModal() { 
+            this.showItemizedModal = false; 
+            if (this.incomeItemChartInstance) this.incomeItemChartInstance.destroy(); 
+            if (this.expenseItemChartInstance) this.expenseItemChartInstance.destroy(); 
+            this.logMessage('debug', '項目別収支グラフモーダルを閉じました', 'ui');
+        },
         async renderRatioChart() {
             // 既存チャートを破棄
             if (this.ratioChartInstance) {
@@ -718,7 +758,7 @@ createApp({
                 const res = await fetch('/api/transactions');
                 allTxs = await res.json();
             } catch (e) {
-                console.error('取引データ取得エラー:', e);
+                this.logMessage('error', '取引データ取得エラー: ' + e.toString(), 'transactions');
             }
             // 選択中の資金項目でフィルタ（統一された選択を使用）
             let filteredTxs;
@@ -800,11 +840,11 @@ createApp({
                 // 円グラフは正方形が理想的なので、幅と高さの小さい方を基準にサイズを決定
                 const sizePerChart = Math.min(widthPerChart, heightAvailableForChart);
                 
-                console.log('Available dimensions:', availableWidth, 'x', availableHeight);
-                console.log('Title height:', titleHeight);
-                console.log('Width per chart:', widthPerChart);
-                console.log('Height available for chart:', heightAvailableForChart);
-                console.log('Final chart size:', sizePerChart);
+                this.logMessage('debug', `Available dimensions: ${availableWidth} x ${availableHeight}`, 'chart-debug');
+                this.logMessage('debug', `Title height: ${titleHeight}`, 'chart-debug');
+                this.logMessage('debug', `Width per chart: ${widthPerChart}`, 'chart-debug');
+                this.logMessage('debug', `Height available for chart: ${heightAvailableForChart}`, 'chart-debug');
+                this.logMessage('debug', `Final chart size: ${sizePerChart}`, 'chart-debug');
                 
                 [incomeCanvas, expenseCanvas].forEach(canvas => {
                     canvas.width = sizePerChart;
@@ -817,7 +857,7 @@ createApp({
             let allTxs = [];
             try {
                 const res = await fetch('/api/transactions'); allTxs = await res.json();
-            } catch (e) { console.error('取引データ取得エラー:', e); }
+            } catch (e) { this.logMessage('error', '取引データ取得エラー: ' + e.toString(), 'transactions'); }
             // filter by selected fund item（統一された選択を使用）
             let filtered;
             if (this.selectedFundItems.length === 0) {
@@ -1137,6 +1177,7 @@ createApp({
                 }
 
                 const result = await response.json();
+                this.logMessage('info', `取引を追加しました: ${this.newTransaction.item} (金額: ${amount}円)`, 'add-transaction');
                 alert(result.message);
 
                 // モーダルを閉じて、データを再読み込み
@@ -1149,7 +1190,7 @@ createApp({
                 await this.loadTransactions();
 
             } catch (error) {
-                console.error('取引追加エラー:', error);
+                this.logMessage('error', '取引追加エラー: ' + error.toString(), 'add-transaction');
                 alert(`エラー: ${error.message}`);
             }
         },
@@ -1192,6 +1233,7 @@ createApp({
                     throw new Error(error.error || '取引の編集に失敗しました');
                 }
                 const result = await response.json();
+                this.logMessage('info', `取引を編集しました: ${this.newTransaction.item} (金額: ${amount}円)`, 'edit-transaction');
                 alert(result.message);
                 this.hideAddModal();
                 await this.loadFundItems();
@@ -1201,7 +1243,7 @@ createApp({
                 }
                 await this.loadTransactions();
             } catch (error) {
-                console.error('取引編集エラー:', error);
+                this.logMessage('error', '取引編集エラー: ' + error.toString(), 'edit-transaction');
                 alert(`エラー: ${error.message}`);
             }
         },
@@ -1217,6 +1259,7 @@ createApp({
                     throw new Error(error.error || '削除に失敗しました');
                 }
                 const result = await response.json();
+                this.logMessage('info', '取引を削除しました', 'delete-transaction');
                 alert(result.message);
                 this.hideAddModal();
                 await this.loadFundItems();
@@ -1227,7 +1270,7 @@ createApp({
                 }
                 await this.loadTransactions();
             } catch (error) {
-                console.error('取引削除エラー:', error);
+                this.logMessage('error', '取引削除エラー: ' + error.toString(), 'delete-transaction');
                 alert(`エラー: ${error.message}`);
             }
         },
@@ -1237,12 +1280,14 @@ createApp({
         showGraphModal() {
             this.showGraph = true;
             this.showMenu = false;
+            this.logMessage('info', '残高推移グラフモーダルを表示しました', 'ui');
             this.$nextTick(() => {
                 this.renderBalanceChart();
             });
         },
         hideGraphModal() {
             this.showGraph = false;
+            this.logMessage('debug', '残高推移グラフモーダルを閉じました', 'ui');
         },
         async logout() {
             if (!confirm('ログアウトしますか？')) {
@@ -1266,7 +1311,7 @@ createApp({
                     alert('ログアウトに失敗しました');
                 }
             } catch (error) {
-                console.error('Logout error:', error);
+                this.logMessage('error', 'Logout error: ' + error.toString(), 'auth');
                 alert('ネットワークエラーが発生しました');
             }
         },
@@ -1374,6 +1419,7 @@ createApp({
         this.loadFundItems().then(() => {
             // 資金項目データ読み込み完了後に取引データを読み込む
             this.loadTransactions();
+            this.logMessage('info', 'アプリケーションの初期化が完了しました', 'app');
         });
         // 初期状態では項目名は空（資金項目選択時に取得）
     },
