@@ -199,13 +199,13 @@
                     </button>
                     <div v-if="showGraphFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 1000;">
                       <div style="padding: 4px;">
-                        <button @click="toggleAllGraphFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="graphFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
+                        <button @click="toggleAllGraphFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="selectedFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
                         </button>
                       </div>
                       <label v-for="item in actualFundItems" :key="item" style="display: block; padding: 2px 8px; cursor: pointer;">
                         <input 
                           type="checkbox" 
-                          :checked="graphFundItems.includes(item)"
+                          :checked="selectedFundItems.includes(item)"
                           @change="toggleGraphFundItem(item)"
                           style="margin-right: 4px;"
                         >
@@ -241,13 +241,13 @@
                     </button>
                     <div v-if="showRatioFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 1000;">
                       <div style="padding: 4px;">
-                        <button @click="toggleAllRatioFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="ratioFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
+                        <button @click="toggleAllRatioFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="selectedFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
                         </button>
                       </div>
                       <label v-for="item in actualFundItems" :key="item" style="display: block; padding: 2px 8px; cursor: pointer;">
                         <input 
                           type="checkbox" 
-                          :checked="ratioFundItems.includes(item)"
+                          :checked="selectedFundItems.includes(item)"
                           @change="toggleRatioFundItem(item)"
                           style="margin-right: 4px;"
                         >
@@ -274,13 +274,13 @@
                     </button>
                     <div v-if="showItemizedFundItemDropdown" class="multi-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 1000;">
                       <div style="padding: 4px;">
-                        <button @click="toggleAllItemizedFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="itemizedFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
+                        <button @click="toggleAllItemizedFundItems" class="toggle-all-btn" style="width: 100%; margin-bottom: 4px; padding: 2px;" v-text="selectedFundItems.length === actualFundItems.length ? '全解除' : '全選択'">
                         </button>
                       </div>
                       <label v-for="item in actualFundItems" :key="item" style="display: block; padding: 2px 8px; cursor: pointer;">
                         <input 
                           type="checkbox" 
-                          :checked="itemizedFundItems.includes(item)"
+                          :checked="selectedFundItems.includes(item)"
                           @change="toggleItemizedFundItem(item)"
                           style="margin-right: 4px;"
                         >

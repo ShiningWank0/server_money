@@ -9,7 +9,7 @@ createApp({
             fundItemNames: [],
             itemNames: // 項目名リスト
             [],
-            selectedFundItems: [], // 複数選択対応（空配列は全選択を意味）
+            selectedFundItems: [], // 統一された資金項目選択（全画面で共有）
             dateSortOrder: 'desc',
             showAccountDropdown: false,
             loading: true,
@@ -37,10 +37,7 @@ createApp({
             ratioChartInstance: null, // 収支比率チャートインスタンス
             incomeItemChartInstance: null, // 収入項目別チャートインスタンス
             expenseItemChartInstance: null, // 支出項目別チャートインスタンス
-            graphFundItems: [], // グラフ用のフィルタ資金項目（複数選択対応）
             graphDisplayUnit: 'day', // グラフ表示単位: 'day','month','year'
-            ratioFundItems: [], // 収支比率用フィルタ資金項目（複数選択対応）
-            itemizedFundItems: [], // 項目別収支用フィルタ資金項目（複数選択対応）
         }
     },
     computed: {
@@ -142,6 +139,30 @@ createApp({
         }
     },
     methods: {
+        // セッションストレージから資金項目選択状態を復元
+        loadSelectedFundItemsFromSession() {
+            try {
+                const savedSelection = sessionStorage.getItem('selectedFundItems');
+                if (savedSelection) {
+                    const parsed = JSON.parse(savedSelection);
+                    if (Array.isArray(parsed)) {
+                        this.selectedFundItems = parsed;
+                        return true;
+                    }
+                }
+            } catch (error) {
+                // セッションストレージエラーは無視
+            }
+            return false;
+        },
+        // セッションストレージに資金項目選択状態を保存
+        saveSelectedFundItemsToSession() {
+            try {
+                sessionStorage.setItem('selectedFundItems', JSON.stringify(this.selectedFundItems));
+            } catch (error) {
+                // セッションストレージエラーは無視
+            }
+        },
         formatCurrency(amount) {
             return '¥' + amount.toLocaleString();
         },
@@ -179,6 +200,8 @@ createApp({
                 // 未選択の場合は追加
                 this.selectedFundItems.push(fundItem);
             }
+            // 選択状態をセッションストレージに保存
+            this.saveSelectedFundItemsToSession();
             this.loadTransactions(); // 資金項目変更時にデータを再読み込み
         },
         toggleAllFundItems() {
@@ -189,99 +212,59 @@ createApp({
                 // 部分選択の場合は全選択
                 this.selectedFundItems = [...this.actualFundItems];
             }
+            // 選択状態をセッションストレージに保存
+            this.saveSelectedFundItemsToSession();
             this.loadTransactions();
         },
         isFundItemSelected(fundItem) {
             return this.selectedFundItems.includes(fundItem);
         },
-        // グラフ用資金項目の表示テキスト
+        // グラフ用資金項目の表示テキスト（統一された選択を使用）
         getGraphFundItemDisplayText() {
-            if (this.graphFundItems.length === 0 || this.graphFundItems.length === this.actualFundItems.length) {
-                return 'すべて';
-            } else if (this.graphFundItems.length === 1) {
-                return this.graphFundItems[0];
-            } else {
-                return `${this.graphFundItems.length}項目選択中`;
-            }
+            return this.selectedFundItemDisplay;
         },
         // グラフ用資金項目のドロップダウン切り替え
         toggleGraphFundItemDropdown() {
             this.showGraphFundItemDropdown = !this.showGraphFundItemDropdown;
         },
-        // グラフ用資金項目の個別切り替え
+        // グラフ用資金項目の個別切り替え（統一された選択を使用）
         toggleGraphFundItem(fundItem) {
-            if (this.graphFundItems.includes(fundItem)) {
-                this.graphFundItems = this.graphFundItems.filter(item => item !== fundItem);
-            } else {
-                this.graphFundItems.push(fundItem);
-            }
+            this.toggleFundItem(fundItem);
             this.renderBalanceChart();
         },
-        // グラフ用資金項目の全選択/全解除
+        // グラフ用資金項目の全選択/全解除（統一された選択を使用）
         toggleAllGraphFundItems() {
-            if (this.graphFundItems.length === this.actualFundItems.length) {
-                this.graphFundItems = [];
-            } else {
-                this.graphFundItems = [...this.actualFundItems];
-            }
+            this.toggleAllFundItems();
             this.renderBalanceChart();
         },
-        // 収支比率用資金項目の表示テキスト
+        // 収支比率用資金項目の表示テキスト（統一された選択を使用）
         getRatioFundItemDisplayText() {
-            if (this.ratioFundItems.length === 0 || this.ratioFundItems.length === this.actualFundItems.length) {
-                return 'すべて';
-            } else if (this.ratioFundItems.length === 1) {
-                return this.ratioFundItems[0];
-            } else {
-                return `${this.ratioFundItems.length}項目選択中`;
-            }
+            return this.selectedFundItemDisplay;
         },
         toggleRatioFundItemDropdown() {
             this.showRatioFundItemDropdown = !this.showRatioFundItemDropdown;
         },
         toggleRatioFundItem(fundItem) {
-            if (this.ratioFundItems.includes(fundItem)) {
-                this.ratioFundItems = this.ratioFundItems.filter(item => item !== fundItem);
-            } else {
-                this.ratioFundItems.push(fundItem);
-            }
+            this.toggleFundItem(fundItem);
             this.renderRatioChart();
         },
         toggleAllRatioFundItems() {
-            if (this.ratioFundItems.length === this.actualFundItems.length) {
-                this.ratioFundItems = [];
-            } else {
-                this.ratioFundItems = [...this.actualFundItems];
-            }
+            this.toggleAllFundItems();
             this.renderRatioChart();
         },
         // 項目別収支用資金項目の表示テキスト
         getItemizedFundItemDisplayText() {
-            if (this.itemizedFundItems.length === 0 || this.itemizedFundItems.length === this.actualFundItems.length) {
-                return 'すべて';
-            } else if (this.itemizedFundItems.length === 1) {
-                return this.itemizedFundItems[0];
-            } else {
-                return `${this.itemizedFundItems.length}項目選択中`;
-            }
+            return this.selectedFundItemDisplay;
         },
         toggleItemizedFundItemDropdown() {
             this.showItemizedFundItemDropdown = !this.showItemizedFundItemDropdown;
         },
         toggleItemizedFundItem(fundItem) {
-            if (this.itemizedFundItems.includes(fundItem)) {
-                this.itemizedFundItems = this.itemizedFundItems.filter(item => item !== fundItem);
-            } else {
-                this.itemizedFundItems.push(fundItem);
-            }
+            this.toggleFundItem(fundItem);
             this.renderItemizedCharts();
         },
         toggleAllItemizedFundItems() {
-            if (this.itemizedFundItems.length === this.actualFundItems.length) {
-                this.itemizedFundItems = [];
-            } else {
-                this.itemizedFundItems = [...this.actualFundItems];
-            }
+            this.toggleAllFundItems();
             this.renderItemizedCharts();
         },
         toggleAccountDropdown() {
@@ -349,19 +332,9 @@ createApp({
                 const fundItems = await response.json();
                 // 「すべて」を先頭に追加
                 this.fundItemNames = ['すべて', ...fundItems];
-                // デフォルトで全ての資金項目を選択状態にする
-                if (this.selectedFundItems.length === 0) {
+                // セッションストレージから選択状態を復元、失敗時はデフォルトで全選択
+                if (!this.loadSelectedFundItemsFromSession()) {
                     this.selectedFundItems = [...fundItems];
-                }
-                // グラフ等もデフォルトで全選択
-                if (this.graphFundItems.length === 0) {
-                    this.graphFundItems = [...fundItems];
-                }
-                if (this.ratioFundItems.length === 0) {
-                    this.ratioFundItems = [...fundItems];
-                }
-                if (this.itemizedFundItems.length === 0) {
-                    this.itemizedFundItems = [...fundItems];
                 }
             } catch (error) {
                 console.error('資金項目データの読み込みエラー:', error);
@@ -467,14 +440,14 @@ createApp({
             } catch (e) {
                 console.error('取引データ取得エラー:', e);
             }
-            // 選択中の資金項目でフィルタ（複数選択対応）
+            // 選択中の資金項目でフィルタ（統一された選択を使用）
             let filteredTxs;
-            if (this.ratioFundItems.length === 0) {
+            if (this.selectedFundItems.length === 0) {
                 // 何も選択されていない場合は空のデータ
                 filteredTxs = [];
-            } else if (this.ratioFundItems.length < this.actualFundItems.length) {
+            } else if (this.selectedFundItems.length < this.actualFundItems.length) {
                 // 部分選択の場合のみフィルタリング
-                filteredTxs = allTxs.filter(t => this.ratioFundItems.includes(t.fundItem || t.account));
+                filteredTxs = allTxs.filter(t => this.selectedFundItems.includes(t.fundItem || t.account));
             } else {
                 // 全選択の場合は全て表示
                 filteredTxs = allTxs;
@@ -496,14 +469,14 @@ createApp({
             try {
                 const res = await fetch('/api/transactions'); allTxs = await res.json();
             } catch (e) { console.error('取引データ取得エラー:', e); }
-            // filter by selected fund item（複数選択対応）
+            // filter by selected fund item（統一された選択を使用）
             let filtered;
-            if (this.itemizedFundItems.length === 0) {
+            if (this.selectedFundItems.length === 0) {
                 // 何も選択されていない場合は空のデータ
                 filtered = [];
-            } else if (this.itemizedFundItems.length < this.actualFundItems.length) {
+            } else if (this.selectedFundItems.length < this.actualFundItems.length) {
                 // 部分選択の場合のみフィルタリング
-                filtered = allTxs.filter(t => this.itemizedFundItems.includes(t.fundItem || t.account));
+                filtered = allTxs.filter(t => this.selectedFundItems.includes(t.fundItem || t.account));
             } else {
                 // 全選択の場合は全て表示
                 filtered = allTxs;
@@ -928,14 +901,14 @@ createApp({
                 canvas.style.width = w + 'px';
                 canvas.style.height = h + 'px';
             }
-            // 資金項目フィルタリングと残高再計算（複数選択対応）
+            // 資金項目フィルタリングと残高再計算（統一された選択を使用）
             let txsRaw;
-            if (this.graphFundItems.length === 0) {
+            if (this.selectedFundItems.length === 0) {
                 // 何も選択されていない場合は空のデータ
                 txsRaw = [];
-            } else if (this.graphFundItems.length < this.actualFundItems.length) {
+            } else if (this.selectedFundItems.length < this.actualFundItems.length) {
                 // 部分選択の場合のみフィルタリング
-                txsRaw = this.transactions.filter(tx => this.graphFundItems.includes(tx.fundItem || tx.account));
+                txsRaw = this.transactions.filter(tx => this.selectedFundItems.includes(tx.fundItem || tx.account));
             } else {
                 // 全選択の場合は全て表示
                 txsRaw = [...this.transactions];
