@@ -681,20 +681,34 @@ createApp({
             // destroy existing
             if (this.incomeItemChartInstance) { this.incomeItemChartInstance.destroy(); this.incomeItemChartInstance = null; }
             if (this.expenseItemChartInstance) { this.expenseItemChartInstance.destroy(); this.expenseItemChartInstance = null; }
-            // canvasサイズを2つの円グラフに適したサイズに調整
+            // canvasサイズを2つの円グラフ（横並び）に適したサイズに調整
+            // 収支比率グラフのサイズ計算を参考にして、2つのグラフ用に調整
             const wrapper = document.querySelector('.graph-scroll-wrapper');
             const incomeCanvas = document.getElementById('incomeItemChart');
             const expenseCanvas = document.getElementById('expenseItemChart');
             if (wrapper && incomeCanvas && expenseCanvas) {
-                const totalWidth = Math.max(wrapper.clientWidth - 60, 600);
-                const totalHeight = Math.max(wrapper.clientHeight - 80, 300); // タイトル分の高さを考慮
+                // 収支比率グラフと同じ方式でサイズ計算（2つのグラフ用に調整）
+                const availableWidth = Math.max(wrapper.clientWidth - 60, 600); // 少し大きめの最小幅
+                const availableHeight = Math.max(wrapper.clientHeight - 80, 400); // パディング分を考慮
                 
-                // 2つの円グラフを横並びにするため、利用可能幅を半分に分割
-                const availableWidthPerChart = Math.floor(totalWidth / 2);
-                const availableHeight = totalHeight;
+                // 各グラフのタイトル（h4）の高さを計算に含める
+                // HTMLで設定した font-size: 1.1em + margin: 0 0 10px 0 を考慮
+                const titleHeight = Math.ceil(1.1 * 16) + 10; // 1.1em ≈ 17.6px + margin-bottom 10px
                 
-                // 各円グラフは正方形が理想的なので、各グラフの幅と高さの小さい方を基準にサイズを決定
-                const sizePerChart = Math.min(availableWidthPerChart, availableHeight);
+                // 2つのグラフを横並びにするため、利用可能幅を2で割る（ギャップ20pxを考慮）
+                const widthPerChart = Math.floor((availableWidth - 20) / 2);
+                
+                // 円グラフの利用可能高さからタイトル分を差し引く
+                const heightAvailableForChart = availableHeight - titleHeight;
+                
+                // 円グラフは正方形が理想的なので、幅と高さの小さい方を基準にサイズを決定
+                const sizePerChart = Math.min(widthPerChart, heightAvailableForChart);
+                
+                console.log('Available dimensions:', availableWidth, 'x', availableHeight);
+                console.log('Title height:', titleHeight);
+                console.log('Width per chart:', widthPerChart);
+                console.log('Height available for chart:', heightAvailableForChart);
+                console.log('Final chart size:', sizePerChart);
                 
                 [incomeCanvas, expenseCanvas].forEach(canvas => {
                     canvas.width = sizePerChart;
@@ -756,7 +770,7 @@ createApp({
             const inData = inEntries.map(([_, val]) => val);
             const exLabels = exEntries.map(([key]) => key);
             const exData = exEntries.map(([_, val]) => val);
-            // draw charts with proper aspect ratio
+            // 収支比率グラフと同じChart.js設定を使用
             const chartOptions = { 
                 responsive: true,
                 maintainAspectRatio: true,
