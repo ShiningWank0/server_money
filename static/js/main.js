@@ -44,6 +44,7 @@ createApp({
             itemizedCurrentDate: new Date(), // 項目別収支グラフの現在選択日付
             ratioAvailablePeriods: [], // 収支比率グラフで利用可能な期間リスト
             itemizedAvailablePeriods: [], // 項目別収支グラフで利用可能な期間リスト
+            resizeTimeout: null, // ウィンドウリサイズのデバウンス用タイマー
         }
     },
     computed: {
@@ -171,6 +172,23 @@ createApp({
         }
     },
     methods: {
+        // ウィンドウリサイズ時のグラフ再描画処理
+        handleWindowResize() {
+            // デバウンス処理でリサイズイベントの頻度を制限
+            clearTimeout(this.resizeTimeout);
+            this.resizeTimeout = setTimeout(() => {
+                // 各モーダルが表示されている場合のみ再描画
+                if (this.showGraph) {
+                    this.renderBalanceChart();
+                }
+                if (this.showRatioModal) {
+                    this.renderRatioChart();
+                }
+                if (this.showItemizedModal) {
+                    this.renderItemizedCharts();
+                }
+            }, 100); // 100ms後に実行
+        },
         // セッションストレージから資金項目選択状態を復元
         loadSelectedFundItemsFromSession() {
             try {
@@ -1272,6 +1290,8 @@ createApp({
     mounted() {
         // ドロップダウンの外側をクリックした時に閉じる
         document.addEventListener('click', this.handleClickOutside);
+        // ウィンドウリサイズ時にグラフを再描画
+        window.addEventListener('resize', this.handleWindowResize);
         // アプリ起動時にAPIからデータを読み込む
         this.loadFundItems().then(() => {
             // 資金項目データ読み込み完了後に取引データを読み込む
@@ -1282,6 +1302,7 @@ createApp({
     beforeUnmount() {
         // イベントリスナーをクリーンアップ
         document.removeEventListener('click', this.handleClickOutside);
+        window.removeEventListener('resize', this.handleWindowResize);
     },
     created() {
         // Vue app created
