@@ -5,20 +5,24 @@ body {
     margin: 0;
     padding: 0;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
+    height: 100vh; /* 画面の高さを固定 */
     display: flex;
     justify-content: center;
-    align-items: center;
-    padding-top: 2rem; /* 上下のパディングを少し増やす */
-    padding-bottom: 2rem; /* 上下のパディングを少し増やす */
+    align-items: flex-start; /* 上寄せに変更 */
+    padding-top: 1rem; /* パディングを削減 */
+    padding-bottom: 1rem; /* パディングを削減 */
     box-sizing: border-box;
+    overflow: hidden; /* 縦スクロールを完全に防ぐ */
 }
 
 #app {
     display: flex;
     flex-direction: column;
-    width: 90%; /* ビューポートに対する幅は維持 */
-    max-width: 1000px; /* 最大幅を800pxから1000pxに増やす */
+    width: 95%; /* ビューポートに対する幅をさらに拡大 */
+    max-width: 1800px; /* 最大幅を大幅に拡大 */
+    height: calc(100vh - 2rem); /* 画面高さからpadding分を引く */
+    max-height: calc(100vh - 2rem);
+    overflow: hidden; /* アプリ全体のスクロールを防ぐ */
 }
 
 .card {
@@ -26,8 +30,8 @@ body {
     border-radius: 20px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     backdrop-filter: blur(10px);
-    padding: 2rem; /* カード内部のパディングも少し増やす */
-    margin-bottom: 2rem; /* カード間のマージンも少し増やす */
+    padding: 1.5rem; /* パディングを削減 */
+    margin-bottom: 1rem; /* マージンを削減 */
     width: 100%;
     box-sizing: border-box;
 }
@@ -43,6 +47,7 @@ body {
     gap: 1rem;
     position: relative; /* Ensure stacking context */
     z-index: 20;      /* Higher than content-card */
+    flex-shrink: 0; /* ヘッダーのサイズを固定 */
 }
 
 .header-top {
@@ -340,14 +345,18 @@ body {
     flex-direction: column;
     position: relative; /* Ensure stacking context */
     z-index: 10;      /* Lower than header */
+    flex: 1; /* 残りの高さを全て使用 */
+    overflow: hidden; /* カード内のスクロールを制御 */
+    min-height: 0; /* flexboxでの縮小を許可 */
 }
 
 /* 残高セクション */
 .balance-section {
     text-align: center;
-    padding-bottom: 2rem; /* パディング調整 */
+    padding-bottom: 1rem; /* パディング削減 */
     border-bottom: 1px solid #eee;
-    margin-bottom: 2rem; /* マージン調整 */
+    margin-bottom: 1rem; /* マージン削減 */
+    flex-shrink: 0; /* 縮小しないよう固定 */
 }
 
 .balance-label {
@@ -365,7 +374,8 @@ body {
 /* 取引履歴セクション */
 .transaction-section {
     overflow-y: auto;
-    max-height: 45vh; /* テーブルの高さを少し増やす */
+    flex: 1; /* 残りの高さを全て使用 */
+    min-height: 0; /* flexboxでの縮小を許可 */
 }
 
 .transaction-table {
@@ -909,20 +919,22 @@ body {
 /* レスポンシブ対応 */
 @media (max-width: 768px) {
     body {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
+        padding-top: 0.5rem; /* モバイルではさらにパディング削減 */
+        padding-bottom: 0.5rem;
     }
     #app {
-        width: 95%;
+        width: 98%;
         max-width: none; /* モバイルではmax-widthを解除して画面幅に追従 */
+        height: calc(100vh - 1rem); /* モバイル用の高さ調整 */
+        max-height: calc(100vh - 1rem);
     }
     .card {
-        padding: 1.2rem; /* モバイルでのカードパディングを少し調整 */
-        margin-bottom: 1.2rem; /* モバイルでのカードマージンを少し調整 */
+        padding: 1rem; /* モバイルでのカードパディングをさらに削減 */
+        margin-bottom: 0.5rem; /* モバイルでのカードマージンをさらに削減 */
     }
     
     .header {
-        gap: 1.2rem; /* 縦積み時の要素間のスペースを少し調整 */
+        gap: 0.8rem; /* 縦積み時の要素間のスペースを削減 */
     }
 
     .header-top {
@@ -942,22 +954,53 @@ body {
         max-width: none; /* モバイルでは最大幅制限を解除 */
     }
     
+    .balance-section {
+        padding-bottom: 0.8rem; /* モバイルでさらにパディング削減 */
+        margin-bottom: 0.8rem;
+    }
+    
     .balance-label {
         font-size: 1rem; /* モバイルでのラベルサイズ調整 */
     }
     .balance-amount {
-        font-size: 2.2rem; /* モバイルでの金額サイズ調整 */
-    }
-    
-    .transaction-section {
-        max-height: 50vh; 
-        overflow-x: auto; /* テーブルがはみ出す場合に横スクロールを許可 */
+        font-size: 2rem; /* モバイルでの金額サイズを少し削減 */
     }
     .transaction-table th,
     .transaction-table td {
-        padding: 0.6rem 0.4rem; /* テーブルセルのパディングを調整 */
-        font-size: 0.85rem; /* テーブルフォントを少し小さく */
+        padding: 0.5rem 0.3rem; /* テーブルセルのパディングをさらに削減 */
+        font-size: 0.8rem; /* テーブルフォントを小さく */
         white-space: nowrap; /* セル内テキストの改行を防ぐ */
+    }
+}
+
+/* 非常に小さい画面用の調整 */
+@media (max-width: 480px) {
+    body {
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+    }
+    #app {
+        height: calc(100vh - 0.5rem);
+        max-height: calc(100vh - 0.5rem);
+    }
+    .card {
+        padding: 0.8rem;
+        margin-bottom: 0.3rem;
+    }
+    .header {
+        gap: 0.5rem;
+    }
+    .balance-section {
+        padding-bottom: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .balance-amount {
+        font-size: 1.8rem;
+    }
+    .transaction-table th,
+    .transaction-table td {
+        padding: 0.4rem 0.2rem;
+        font-size: 0.75rem;
     }
 }
 
