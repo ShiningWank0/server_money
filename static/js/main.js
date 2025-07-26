@@ -45,6 +45,12 @@ createApp({
             ratioAvailablePeriods: [], // 収支比率グラフで利用可能な期間リスト
             itemizedAvailablePeriods: [], // 項目別収支グラフで利用可能な期間リスト
             resizeTimeout: null, // ウィンドウリサイズのデバウンス用タイマー
+            latestDataDates: { // 最新データの年月日
+                year: null,
+                month: null,
+                day: null
+            },
+            selectUpdateKey: 0 // select要素の強制更新用キー
         }
     },
     computed: {
@@ -93,6 +99,56 @@ createApp({
         // 実際の資金項目リスト（「すべて」を除く）
         actualFundItems() {
             return this.fundItemNames.filter(name => name !== 'すべて');
+        },
+        // 収支比率グラフの期間選択肢表示テキスト
+        ratioDisplayOptions() {
+            const currentDate = this.ratioCurrentDate;
+            return [
+                { value: 'all', text: '全期間' },
+                { 
+                    value: 'year', 
+                    text: this.ratioDisplayUnit === 'year' && currentDate ? 
+                        `${currentDate.getFullYear()}年` : 
+                        (this.latestDataDates.year ? `${this.latestDataDates.year}年` : '年別')
+                },
+                { 
+                    value: 'month', 
+                    text: this.ratioDisplayUnit === 'month' && currentDate ? 
+                        `${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月` : 
+                        (this.latestDataDates.month ? this.latestDataDates.month : '月別')
+                },
+                { 
+                    value: 'day', 
+                    text: this.ratioDisplayUnit === 'day' && currentDate ? 
+                        `${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月${currentDate.getDate()}日` : 
+                        (this.latestDataDates.day ? this.latestDataDates.day : '日別')
+                }
+            ];
+        },
+        // 項目別収支グラフの期間選択肢表示テキスト
+        itemizedDisplayOptions() {
+            const currentDate = this.itemizedCurrentDate;
+            return [
+                { value: 'all', text: '全期間' },
+                { 
+                    value: 'year', 
+                    text: this.itemizedDisplayUnit === 'year' && currentDate ? 
+                        `${currentDate.getFullYear()}年` : 
+                        (this.latestDataDates.year ? `${this.latestDataDates.year}年` : '年別')
+                },
+                { 
+                    value: 'month', 
+                    text: this.itemizedDisplayUnit === 'month' && currentDate ? 
+                        `${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月` : 
+                        (this.latestDataDates.month ? this.latestDataDates.month : '月別')
+                },
+                { 
+                    value: 'day', 
+                    text: this.itemizedDisplayUnit === 'day' && currentDate ? 
+                        `${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月${currentDate.getDate()}日` : 
+                        (this.latestDataDates.day ? this.latestDataDates.day : '日別')
+                }
+            ];
         },
         // 収支比率グラフの現在期間表示
         ratioCurrentPeriodDisplay() {
@@ -188,6 +244,23 @@ createApp({
                     this.renderItemizedCharts();
                 }
             }, 100); // 100ms後に実行
+        },
+        // 最新データの日付を更新
+        updateLatestDataDates() {
+            if (this.transactions.length === 0) {
+                this.latestDataDates = { year: null, month: null, day: null };
+                return;
+            }
+
+            // 取引データを日付でソートして最新の日付を取得
+            const sortedTxs = [...this.transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+            const latestDate = new Date(sortedTxs[0].date);
+            
+            this.latestDataDates = {
+                year: latestDate.getFullYear(),
+                month: `${latestDate.getFullYear()}年${latestDate.getMonth() + 1}月`,
+                day: `${latestDate.getFullYear()}年${latestDate.getMonth() + 1}月${latestDate.getDate()}日`
+            };
         },
         // セッションストレージから資金項目選択状態を復元
         loadSelectedFundItemsFromSession() {
@@ -396,6 +469,9 @@ createApp({
             } else {
                 this.itemizedCurrentDate = date;
             }
+            
+            // select要素の表示を強制更新
+            this.selectUpdateKey++;
         },
         // 収支比率グラフの期間移動
         async navigateRatioPeriod(direction) {
@@ -505,6 +581,8 @@ createApp({
                     throw new Error('データの取得に失敗しました');
                 }
                 this.transactions = await response.json();
+                // 取引データ読み込み後に最新日付を更新
+                this.updateLatestDataDates();
             } catch (error) {
                 console.error('取引データの読み込みエラー:', error);
                 alert('データの読み込みに失敗しました。');

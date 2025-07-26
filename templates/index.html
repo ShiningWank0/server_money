@@ -260,11 +260,8 @@
                   <label style="white-space: nowrap; font-size: 0.95em;">表示期間：</label>
                   <div style="display: flex; align-items: center; gap: 8px;">
                     <button v-if="ratioDisplayUnit !== 'all'" @click="navigateRatioPeriod(-1)" :disabled="!canNavigateRatioPeriod(-1)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;" :style="{ opacity: canNavigateRatioPeriod(-1) ? 1 : 0.5 }">◀</button>
-                    <select v-model="ratioDisplayUnit" @change="onRatioDisplayUnitChange" style="padding: 4px 8px; z-index: 100; position: relative;">
-                      <option value="all">全期間</option>
-                      <option value="day">日別</option>
-                      <option value="month">月別</option>
-                      <option value="year">年別</option>
+                    <select v-model="ratioDisplayUnit" @change="onRatioDisplayUnitChange" :key="`ratio-${selectUpdateKey}`" style="padding: 4px 8px; z-index: 100; position: relative;">
+                      <option v-for="option in ratioDisplayOptions" :key="option.value" :value="option.value" v-text="option.text"></option>
                     </select>
                     <button v-if="ratioDisplayUnit !== 'all'" @click="navigateRatioPeriod(1)" :disabled="!canNavigateRatioPeriod(1)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;" :style="{ opacity: canNavigateRatioPeriod(1) ? 1 : 0.5 }">▶</button>
                   </div>
@@ -309,11 +306,8 @@
                   <label style="white-space: nowrap; font-size: 0.95em;">表示期間：</label>
                   <div style="display: flex; align-items: center; gap: 8px;">
                     <button v-if="itemizedDisplayUnit !== 'all'" @click="navigateItemizedPeriod(-1)" :disabled="!canNavigateItemizedPeriod(-1)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;" :style="{ opacity: canNavigateItemizedPeriod(-1) ? 1 : 0.5 }">◀</button>
-                    <select v-model="itemizedDisplayUnit" @change="onItemizedDisplayUnitChange" style="padding: 4px 8px; z-index: 100; position: relative;">
-                      <option value="all">全期間</option>
-                      <option value="day">日別</option>
-                      <option value="month">月別</option>
-                      <option value="year">年別</option>
+                    <select v-model="itemizedDisplayUnit" @change="onItemizedDisplayUnitChange" :key="`itemized-${selectUpdateKey}`" style="padding: 4px 8px; z-index: 100; position: relative;">
+                      <option v-for="option in itemizedDisplayOptions" :key="option.value" :value="option.value" v-text="option.text"></option>
                     </select>
                     <button v-if="itemizedDisplayUnit !== 'all'" @click="navigateItemizedPeriod(1)" :disabled="!canNavigateItemizedPeriod(1)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer;" :style="{ opacity: canNavigateItemizedPeriod(1) ? 1 : 0.5 }">▶</button>
                   </div>
