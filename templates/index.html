@@ -110,69 +110,71 @@
 
         <!-- 新規取引追加モーダル -->
         <div v-if="showAddTransactionModal" class="modal-overlay" @click="hideAddModal">
-            <div class="modal-content" @click.stop>
+            <div class="modal-content transaction-modal" @click.stop>
                 <!-- タイトル部分 -->
                 <h3 v-if="isEditMode">取引を編集</h3>
                 <h3 v-else>新しい取引を追加</h3>
 
                 <form @submit.prevent="addOrUpdateTransaction">
-                    <div class="form-row">
-                        <label>日付:</label>
-                        <input type="date" v-model="newTransaction.date" required>
-                    </div>
-                    <div class="form-row">
-                        <label>時刻 (任意):</label>
-                        <input type="time" v-model="newTransaction.time">
-                    </div>
-                    <div class="form-row">
-                        <label>資金項目:</label>
-                        <div class="funditem-input-group" @click.stop>
-                            <input type="text" 
-                                   v-model="newTransaction.fundItem" 
-                                   placeholder="資金項目名を入力または選択" 
-                                   required 
-                                   @click="onFundItemInputClick"
-                                   @focus="showFundItemDropdown = true">
-                            <button type="button" class="dropdown-toggle-btn" @click="toggleFundItemDropdown">▼</button>
-                            <div v-if="showFundItemDropdown" class="funditem-dropdown">
-                                <ul>
-                                    <li v-for="item in fundItemNames.filter(name => name !== 'すべて')" 
-                                        :key="item" 
-                                        @click="selectFundItemInModal(item)"
-                                        :class="{ 'selected': item === newTransaction.fundItem }">
-                                        <span v-text="item"></span>
-                                    </li>
-                                </ul>
+                    <div class="form-container">
+                        <div class="form-row">
+                            <label>日付:</label>
+                            <input type="date" v-model="newTransaction.date" required>
+                        </div>
+                        <div class="form-row">
+                            <label>時刻 (任意):</label>
+                            <input type="time" v-model="newTransaction.time">
+                        </div>
+                        <div class="form-row">
+                            <label>資金項目:</label>
+                            <div class="funditem-input-group" @click.stop>
+                                <input type="text" 
+                                       v-model="newTransaction.fundItem" 
+                                       placeholder="資金項目名を入力または選択" 
+                                       required 
+                                       @click="onFundItemInputClick"
+                                       @focus="showFundItemDropdown = true">
+                                <button type="button" class="dropdown-toggle-btn" @click="toggleFundItemDropdown">▼</button>
+                                <div v-if="showFundItemDropdown" class="funditem-dropdown">
+                                    <ul>
+                                        <li v-for="item in fundItemNames.filter(name => name !== 'すべて')" 
+                                            :key="item" 
+                                            @click="selectFundItemInModal(item)"
+                                            :class="{ 'selected': item === newTransaction.fundItem }">
+                                            <span v-text="item"></span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <small v-if="isNewFundItem(newTransaction.fundItem)" class="new-account-notice">{% raw %}新しい資金項目「{{ newTransaction.fundItem }}」が作成されます{% endraw %}</small>
+                        </div>
+                        <div class="form-row">
+                            <label>種類:</label>
+                            <div class="radio-group">
+                                <label><input type="radio" v-model="newTransaction.type" value="income"> 収入</label>
+                                <label><input type="radio" v-model="newTransaction.type" value="expense"> 支出</label>
                             </div>
                         </div>
-                        <small v-if="isNewFundItem(newTransaction.fundItem)" class="new-account-notice">{% raw %}新しい資金項目「{{ newTransaction.fundItem }}」が作成されます{% endraw %}</small>
-                    </div>
-                    <div class="form-row">
-                        <label>種類:</label>
-                        <div class="radio-group">
-                            <label><input type="radio" v-model="newTransaction.type" value="income"> 収入</label>
-                            <label><input type="radio" v-model="newTransaction.type" value="expense"> 支出</label>
+                        <div class="form-row">
+                            <label>項目:</label>
+                            <div class="item-input-group">
+                                <input type="text" v-model="newTransaction.item" placeholder="例: 給与、食費、交通費" required list="item-list">
+                                <datalist id="item-list">
+                                    <option v-for="item in itemNames" :key="item" :value="item">
+                                </datalist>
+                            </div>
+                            <small v-if="isNewItem(newTransaction.item)" class="new-account-notice">{% raw %}新しい項目「{{ newTransaction.item }}」が作成されます{% endraw %}</small>
                         </div>
-                    </div>
-                    <div class="form-row">
-                        <label>項目:</label>
-                        <div class="item-input-group">
-                            <input type="text" v-model="newTransaction.item" placeholder="例: 給与、食費、交通費" required list="item-list">
-                            <datalist id="item-list">
-                                <option v-for="item in itemNames" :key="item" :value="item">
-                            </datalist>
+                        <div class="form-row">
+                            <label>金額:</label>
+                            <input type="text" v-model="newTransaction.amount" placeholder="円" required 
+                                   :class="getAmountInputClass(newTransaction.type)"
+                                   @input="onAmountInput"
+                                   @keydown="onAmountKeydown"
+                                   @paste="onAmountPaste"
+                                   inputmode="numeric"
+                                   autocomplete="off">
                         </div>
-                        <small v-if="isNewItem(newTransaction.item)" class="new-account-notice">{% raw %}新しい項目「{{ newTransaction.item }}」が作成されます{% endraw %}</small>
-                    </div>
-                    <div class="form-row">
-                        <label>金額:</label>
-                        <input type="text" v-model="newTransaction.amount" placeholder="円" required 
-                               :class="getAmountInputClass(newTransaction.type)"
-                               @input="onAmountInput"
-                               @keydown="onAmountKeydown"
-                               @paste="onAmountPaste"
-                               inputmode="numeric"
-                               autocomplete="off">
                     </div>
                     <div class="modal-buttons" style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
