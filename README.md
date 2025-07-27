@@ -55,7 +55,8 @@ Server Moneyは、個人や小規模組織の収支管理を効率的に行うWe
 
 ### 💾 データ管理・バックアップ
 - **CSVエクスポート**: 全取引データをCSVファイルでバックアップ
-- **自動ログ記録**: 詳細なアプリケーションログを自動保存
+- **統合ログ管理システム**: フロントエンド・バックエンド統合ログ、ローテーション機能付き
+- **ログファイルダウンロード**: アプリケーションログの簡単ダウンロード
 - **データ整合性**: SQLiteデータベースによる安全なデータ保存
 
 ### 📱 レスポンシブデザイン
@@ -94,8 +95,8 @@ Server Moneyは、個人や小規模組織の収支管理を効率的に行うWe
 
 ### 開発・運用ツール
 - **uv**: 高速Pythonパッケージマネージャー・環境管理
-- **RotatingFileHandler**: ログローテーション機能
-- **環境変数サポート**: 開発・本番環境の設定分離
+- **統合ログシステム**: JS・Python統合ログ、10MBローテーション（5ファイル保持）
+- **環境変数サポート**: 開発・本番環境の設定分離、詳細ログレベル制御
 
 ## 📁 プロジェクト構造
 
@@ -349,6 +350,25 @@ Server MoneyはRESTful APIを提供し、フロントエンドとの効率的な
 #### `GET /api/download_log`
 **概要**: アプリケーションログファイルダウンロード
 
+#### `POST /api/log`
+**概要**: フロントエンドからのログメッセージ受信（統合ログシステム）
+
+**リクエストボディ**:
+```json
+{
+  "level": "info",
+  "message": "ユーザーアクションまたはシステム情報",
+  "component": "ui"
+}
+```
+
+**レスポンス例**:
+```json
+{
+  "status": "logged"
+}
+```
+
 ## 🎨 UIデザイン哲学
 
 Server MoneyのUIデザインは、**機能性と美しさの両立**を目指しています。
@@ -494,6 +514,16 @@ docker run -p 4000:4000 server-money
 | `ENVIRONMENT` | `development` | 実行環境（`development` / `production`） |
 | `LOG_LEVEL` | `INFO` | ログレベル（`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`） |
 
+### ログレベル詳細
+
+| レベル | 出力内容 | 使用場面 |
+|--------|---------|----------|
+| `DEBUG` | UI操作、セッション管理、詳細なデバッグ情報 | 開発・問題調査時 |
+| `INFO` | データ取得、ユーザーアクション、処理成功 | 通常運用（推奨） |
+| `WARNING` | 警告レベルの情報 | 注意が必要な状況 |
+| `ERROR` | エラー情報、例外処理 | 問題発生時 |
+| `CRITICAL` | 重大なエラー | システム障害時 |
+
 ⚠️ **セキュリティ注意**: 認証関連の環境変数は`.env`ファイルで管理され、Gitから除外されています。
 
 ### 環境別設定
@@ -510,11 +540,18 @@ docker run -p 4000:4000 server-money
 - **Werkzeugログ**: 警告レベル以上のみ
 - **用途**: プロダクション環境、サーバーデプロイ
 
-### ログローテーション設定
+### 統合ログシステム
 
+**ログローテーション設定**
 - **ファイルサイズ上限**: 10MB
 - **保持ファイル数**: 5個
 - **ログファイル**: `logs/money_tracker.log`, `logs/money_tracker.log.1`, ...
+
+**フロントエンド・バックエンド統合**
+- **統一ログファイル**: JavaScriptとPythonのログを同一ファイルに集約
+- **コンポーネント識別**: `[JS:component]` / `[Python:module]` 形式
+- **API経由ログ**: `/api/log`エンドポイントでJS側からログ送信
+- **console出力廃止**: 全てのconsole.log/error文をlogMessage関数に置換
 
 ### データベース設定
 
@@ -536,8 +573,14 @@ uv add --dev pytest pytest-flask
 # 新しい依存関係の追加
 uv add requests
 
-# 開発モードでの実行
+# 開発モードでの実行（詳細ログ出力）
 ENVIRONMENT=development LOG_LEVEL=DEBUG uv run app.py
+
+# 本番環境での実行
+ENVIRONMENT=production uv run app.py
+
+# 本番環境・警告レベル以上のみ
+ENVIRONMENT=production LOG_LEVEL=WARNING uv run app.py
 ```
 
 ### コード構造の理解
@@ -546,9 +589,9 @@ ENVIRONMENT=development LOG_LEVEL=DEBUG uv run app.py
 
 **主要コンポーネント**:
 1. **認証システム**: bcryptパスワード検証、セッション管理、ログイン試行制限
-2. **ログシステム設定**: 環境別ログ設定、ローテーション
+2. **統合ログシステム**: 環境別ログ設定、ローテーション、JS・Python統合ログ
 3. **データベースモデル**: SQLAlchemy ORMによるTransactionモデル
-4. **API エンドポイント**: REST APIの実装（全て認証必須）
+4. **API エンドポイント**: REST APIの実装（全て認証必須）、フロントエンドログ受信
 5. **エラーハンドリング**: 例外処理とログ記録
 
 **重要な関数**:
@@ -563,8 +606,8 @@ ENVIRONMENT=development LOG_LEVEL=DEBUG uv run app.py
 **Vue.jsアプリケーション構造**:
 1. **リアクティブデータ**: 取引履歴、口座情報、UI状態
 2. **computed プロパティ**: フィルタリング、ソート、残高計算
-3. **メソッド**: API通信、認証管理、UI操作、データ可視化
-4. **ライフサイクル**: 初期データロード
+3. **メソッド**: API通信、認証管理、UI操作、データ可視化、統合ログ送信
+4. **ライフサイクル**: 初期データロード、ログシステム初期化
 
 **重要なcomputed**:
 - `filteredTransactions`: 検索・フィルタリング結果
@@ -572,7 +615,10 @@ ENVIRONMENT=development LOG_LEVEL=DEBUG uv run app.py
 - `currentBalance`: 現在残高の算出
 
 **重要なメソッド**:
+- `logMessage()`: 統合ログシステムへのメッセージ送信
 - `logout()`: セキュアなログアウト処理
+- `loadTransactions()`: 取引データ取得とログ記録
+- `addTransaction()`: 取引追加とログ記録
 
 ### APIエンドポイントの拡張
 
