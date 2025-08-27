@@ -954,7 +954,10 @@ createApp({
             // 常に最新の資金項目リストを取得
             await this.loadFundItems();
             const today = new Date();
-            this.newTransaction.date = today.toISOString().split('T')[0];
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            this.newTransaction.date = `${year}-${month}-${day}`;
             this.newTransaction.time = today.toTimeString().slice(0, 5);
             // 「すべて」以外の最初の資金項目を初期値に
             const firstFundItem = this.fundItemNames.find(name => name !== 'すべて') || '';
