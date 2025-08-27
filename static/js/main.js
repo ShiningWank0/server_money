@@ -50,7 +50,14 @@ createApp({
                 month: null,
                 day: null
             },
-            selectUpdateKey: 0 // select要素の強制更新用キー
+            selectUpdateKey: 0, // select要素の強制更新用キー
+            // CSVインポート関連
+            showImportCSVModal: false,
+            csvFile: null,
+            csvImportMode: 'append',
+            csvImporting: false,
+            csvImportError: null,
+            csvImportSuccess: null
         }
     },
     computed: {
@@ -1409,6 +1416,104 @@ createApp({
                  }
              });
         },
+
+        // CSVインポート関連メソッド
+        showImportCSVModalMethod() {
+            this.logMessage('info', 'CSVインポートモーダルを表示', 'csv_import');
+            this.showImportCSVModal = true;
+            this.csvFile = null;
+            this.csvImportError = null;
+            this.csvImportSuccess = null;
+            this.csvImporting = false;
+            this.csvImportMode = 'append';
+            
+            // ハンバーガーメニューを閉じる
+            this.showMenu = false;
+        },
+
+        hideImportCSVModal() {
+            this.logMessage('info', 'CSVインポートモーダルを非表示', 'csv_import');
+            this.showImportCSVModal = false;
+            this.csvFile = null;
+            this.csvImportError = null;
+            this.csvImportSuccess = null;
+            this.csvImporting = false;
+            
+            // ファイル入力をリセット
+            if (this.$refs.csvFileInput) {
+                this.$refs.csvFileInput.value = '';
+            }
+        },
+
+        onCSVFileSelected(event) {
+            const file = event.target.files[0];
+            if (file) {
+                if (!file.name.toLowerCase().endsWith('.csv')) {
+                    this.csvImportError = 'CSVファイルを選択してください';
+                    this.csvFile = null;
+                } else {
+                    this.csvFile = file;
+                    this.csvImportError = null;
+                    this.csvImportSuccess = null;
+                    this.logMessage('info', `CSVファイルを選択: ${file.name}`, 'csv_import');
+                }
+            } else {
+                this.csvFile = null;
+                this.csvImportError = null;
+                this.csvImportSuccess = null;
+            }
+        },
+
+        async importCSVFile() {
+            if (!this.csvFile) {
+                this.csvImportError = 'CSVファイルを選択してください';
+                return;
+            }
+
+            this.csvImporting = true;
+            this.csvImportError = null;
+            this.csvImportSuccess = null;
+            
+            this.logMessage('info', `CSVインポートを開始: モード=${this.csvImportMode}, ファイル=${this.csvFile.name}`, 'csv_import');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', this.csvFile);
+                formData.append('mode', this.csvImportMode);
+
+                const response = await fetch('/api/import_csv', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    this.csvImportSuccess = result.message;
+                    this.logMessage('info', `CSVインポート成功: ${result.imported_count}件インポート`, 'csv_import');
+                    
+                    // データを再読み込み
+                    await this.loadTransactions();
+                    await this.loadFundItems();
+                    await this.loadItemNames();
+                    
+                    // モーダルを3秒後に閉じる
+                    setTimeout(() => {
+                        if (this.showImportCSVModal) {
+                            this.hideImportCSVModal();
+                        }
+                    }, 3000);
+                } else {
+                    this.csvImportError = result.error || 'インポートに失敗しました';
+                    this.logMessage('error', `CSVインポート失敗: ${this.csvImportError}`, 'csv_import');
+                }
+            } catch (error) {
+                this.csvImportError = `ネットワークエラー: ${error.message}`;
+                this.logMessage('error', `CSVインポートエラー: ${error.message}`, 'csv_import');
+            }
+
+            this.csvImporting = false;
+        }
     },
     mounted() {
         // ドロップダウンの外側をクリックした時に閉じる

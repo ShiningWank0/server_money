@@ -15,7 +15,7 @@ from models import db, Transaction
 from utils import (
     ensure_table_exists, cleanup_old_backups, 
     generate_unique_filename, validate_transaction_data, 
-    parse_transaction_date
+    parse_transaction_date, parse_csv_file, import_csv_transactions
 )
 
 # Blueprintの作成
@@ -435,6 +435,76 @@ def log_from_frontend():
     except Exception as e:
         current_app.logger.error(f"フロントエンドログ記録エラー: {str(e)}", exc_info=True)
         return jsonify({'error': 'ログ記録に失敗しました'}), 500
+
+@api_bp.route("/api/import_csv", methods=['POST'])
+@login_required
+def import_csv():
+    """CSVファイルからトランザクションをインポートするAPI"""
+    from flask import current_app
+    
+    current_app.logger.info("CSVインポートを開始しています")
+    
+    try:
+        # ファイルの確認
+        if 'file' not in request.files:
+            return jsonify({'error': 'ファイルが選択されていません'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'ファイルが選択されていません'}), 400
+        
+        # ファイル拡張子の確認
+        if not file.filename.lower().endswith('.csv'):
+            return jsonify({'error': 'CSVファイルのみアップロード可能です'}), 400
+        
+        # インポートモードの取得（デフォルト: append）
+        import_mode = request.form.get('mode', 'append')
+        if import_mode not in ['append', 'replace']:
+            return jsonify({'error': 'インポートモードは"append"または"replace"である必要があります'}), 400
+        
+        # ファイル内容の読み取り
+        try:
+            file_content = file.read().decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                # UTF-8で失敗した場合はShift_JISを試す
+                file.seek(0)
+                file_content = file.read().decode('shift_jis')
+            except UnicodeDecodeError:
+                return jsonify({'error': 'ファイルの文字エンコーディングがサポートされていません（UTF-8またはShift_JISのみ対応）'}), 400
+        
+        current_app.logger.debug(f"CSVファイルを読み取りました: {file.filename}, モード: {import_mode}")
+        
+        # CSVファイルの解析
+        success, transactions_data, error_message = parse_csv_file(file_content)
+        if not success:
+            current_app.logger.warning(f"CSVファイルの解析に失敗: {error_message}")
+            return jsonify({'error': error_message}), 400
+        
+        current_app.logger.info(f"CSVファイル解析完了: {len(transactions_data)}件のトランザクション")
+        
+        # データのインポート
+        success, imported_count, error_message = import_csv_transactions(transactions_data, import_mode)
+        if not success:
+            return jsonify({'error': error_message}), 500
+        
+        response_message = f'CSVファイルのインポートが完了しました。{imported_count}件のトランザクションを'
+        if import_mode == 'replace':
+            response_message += '全て置き換えました。'
+        else:
+            response_message += '追加しました。'
+        
+        current_app.logger.info(response_message)
+        
+        return jsonify({
+            'message': response_message,
+            'imported_count': imported_count,
+            'mode': import_mode
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"CSVインポートでエラーが発生しました: {str(e)}", exc_info=True)
+        return jsonify({'error': f'CSVインポートに失敗しました: {str(e)}'}), 500
 
 def _recalculate_balance_for_account(account):
     """指定口座の残高を再計算する内部関数

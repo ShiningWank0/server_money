@@ -67,6 +67,7 @@
         <div v-if="showMenu" class="side-menu-overlay" @click.self="toggleMenu">
             <div class="side-menu">
                 <button class="menu-btn" @click="backupToCSV">CSVバックアップ</button>
+                <button class="menu-btn" @click="showImportCSVModalMethod">CSVインポート</button>
                 <button class="menu-btn" @click="downloadLog">ログファイルダウンロード</button>
                 <button class="menu-btn" @click="showGraphModal">残高推移グラフ表示</button>
                 <button class="menu-btn" @click="openRatioModal">収支比率グラフ</button>
@@ -330,6 +331,110 @@
                   </div>
                 </div>
                 <button class="cancel-btn" @click="hideItemizedModal" style="margin-top: 8px; padding: 6px 16px;">閉じる</button>
+            </div>
+        </div>
+
+        <!-- CSVインポートモーダル -->
+        <div v-if="showImportCSVModal" class="modal-overlay" @click="hideImportCSVModal">
+            <div class="modal-content graph-modal-content graph-modal-xlarge csv-import-modal" @click.stop>
+                <h3 style="margin: 8px 0 12px 0; font-size: 1.3em;">CSVインポート</h3>
+                
+                <!-- ファイル選択セクション -->
+                <div class="graph-filter-row">
+                    <label>CSVファイル：</label>
+                    <div style="flex: 1; min-width: 200px;">
+                        <input 
+                            type="file" 
+                            accept=".csv" 
+                            ref="csvFileInput"
+                            @change="onCSVFileSelected"
+                        >
+                        <div v-if="csvFile" class="file-info">
+                            選択ファイル: <span v-text="csvFile.name"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- インポートモード選択 -->
+                <div class="graph-filter-row">
+                    <label>インポートモード：</label>
+                    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                        <label style="display: flex; align-items: center; cursor: pointer; font-size: 0.9em;">
+                            <input 
+                                type="radio" 
+                                v-model="csvImportMode" 
+                                value="append"
+                            >
+                            <span>追加 (既存データを保持)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer; font-size: 0.9em;">
+                            <input 
+                                type="radio" 
+                                v-model="csvImportMode" 
+                                value="replace"
+                            >
+                            <span>置換 (既存データを削除)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- CSV形式の説明 -->
+                <div class="format-info">
+                    <div style="font-weight: bold; margin-bottom: 8px; font-size: 0.95em; color: #333;">CSVファイル形式</div>
+                    <div>
+                        <div style="margin-bottom: 4px;"><strong>必須ヘッダー:</strong> account, date, item, type, amount</div>
+                        <div style="margin-left: 12px;">
+                            <div>• <strong>account:</strong> 資金項目名</div>
+                            <div>• <strong>date:</strong> 取引日 (YYYY-MM-DD または YYYY-MM-DD HH:MM:SS)</div>
+                            <div>• <strong>item:</strong> 取引項目名</div>
+                            <div>• <strong>type:</strong> income (収入) または expense (支出)</div>
+                            <div>• <strong>amount:</strong> 金額 (正の数値)</div>
+                            <div>• <strong>balance:</strong> 残高 (オプション、自動計算されます)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- プログレスバー -->
+                <div v-if="csvImporting" style="margin-bottom: 12px;">
+                    <div class="progress-bar">
+                        <div style="width: 100%; height: 100%; background: linear-gradient(90deg, #007bff, #0056b3); animation: progress-animation 1.5s infinite;"></div>
+                    </div>
+                    <div style="text-align: center; margin-top: 8px; font-size: 0.9em; color: #666; font-weight: 500;">
+                        CSVファイルをインポート中...
+                    </div>
+                </div>
+
+                <!-- ステータスメッセージエリア -->
+                <div class="status-area">
+                    <!-- エラーメッセージ -->
+                    <div v-if="csvImportError" class="status-message status-error" v-text="csvImportError">
+                    </div>
+
+                    <!-- 成功メッセージ -->
+                    <div v-if="csvImportSuccess" class="status-message status-success" v-text="csvImportSuccess">
+                    </div>
+                </div>
+
+                <!-- ボタン -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                    <button 
+                        class="cancel-btn" 
+                        @click="hideImportCSVModal" 
+                        :disabled="csvImporting"
+                        style="padding: 6px 16px;"
+                    >
+                        キャンセル
+                    </button>
+                    <button 
+                        class="ok-btn" 
+                        @click="importCSVFile" 
+                        :disabled="!csvFile || csvImporting"
+                        :style="{ opacity: (!csvFile || csvImporting) ? 0.5 : 1 }"
+                        style="padding: 6px 20px;"
+                        v-text="csvImporting ? 'インポート中...' : 'インポート実行'"
+                    >
+                    </button>
+                </div>
             </div>
         </div>
     </div>
