@@ -90,7 +90,7 @@
                     <thead>
                         <tr>
                             <th @click="toggleDateSort" style="cursor: pointer;">日付 <span v-if="dateSortOrder === 'asc'">▲</span><span v-if="dateSortOrder === 'desc'">▼</span></th>
-                            <th v-if="selectedFundItemDisplay === 'すべて'">資金項目</th>
+                            <th v-if="shouldShowFundItemColumn">資金項目</th>
                             <th>項目</th>
                             <th>金額</th>
                             <th>残高</th>
@@ -99,7 +99,7 @@
                     <tbody>
                         <tr v-for="transaction in sortedTransactions" :key="transaction.id" @click="onEditTransaction(transaction)">
                             <td v-text="formatDateTime(transaction.date)"></td>
-                            <td v-if="selectedFundItemDisplay === 'すべて'" v-text="transaction.fundItem || transaction.account"></td>
+                            <td v-if="shouldShowFundItemColumn" v-text="transaction.fundItem || transaction.account"></td>
                             <td v-text="transaction.item"></td>
                             <td :class="getAmountCellClass(transaction.type)" v-text="formatAmount(transaction.amount, transaction.type)"></td>
                             <td v-text="formatCurrency(transaction.balance)"></td>

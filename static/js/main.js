@@ -107,6 +107,10 @@ createApp({
         actualFundItems() {
             return this.fundItemNames.filter(name => name !== 'すべて');
         },
+        // 資金項目カラムを表示するかどうか（1つだけ選択されている場合は非表示、それ以外は表示）
+        shouldShowFundItemColumn() {
+            return this.selectedFundItems.length !== 1;
+        },
         // 収支比率グラフの期間選択肢表示テキスト
         ratioDisplayOptions() {
             const currentDate = this.ratioCurrentDate;
