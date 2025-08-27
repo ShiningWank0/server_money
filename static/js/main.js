@@ -95,7 +95,9 @@ createApp({
         },
         // 選択された資金項目の表示名（デフォルトで全選択）
         selectedFundItemDisplay() {
-            if (this.selectedFundItems.length === 0 || this.selectedFundItems.length === this.fundItemNames.filter(name => name !== 'すべて').length) {
+            if (this.selectedFundItems.length === 0) {
+                return '未選択';
+            } else if (this.selectedFundItems.length === this.fundItemNames.filter(name => name !== 'すべて').length) {
                 return 'すべて';
             } else if (this.selectedFundItems.length === 1) {
                 return this.selectedFundItems[0];
@@ -107,9 +109,9 @@ createApp({
         actualFundItems() {
             return this.fundItemNames.filter(name => name !== 'すべて');
         },
-        // 資金項目カラムを表示するかどうか（1つだけ選択されている場合は非表示、それ以外は表示）
+        // 資金項目カラムを表示するかどうか（2つ以上選択されている場合のみ表示）
         shouldShowFundItemColumn() {
-            return this.selectedFundItems.length !== 1;
+            return this.selectedFundItems.length >= 2;
         },
         // 収支比率グラフの期間選択肢表示テキスト
         ratioDisplayOptions() {
