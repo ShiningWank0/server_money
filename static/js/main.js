@@ -57,7 +57,12 @@ createApp({
             csvImportMode: 'append',
             csvImporting: false,
             csvImportError: null,
-            csvImportSuccess: null
+            csvImportSuccess: null,
+            // クレジットカード設定関連
+            selectedCreditCardItems: [],
+            showCreditCardDropdown: false,
+            creditCardSettingsMessage: null,
+            showCreditCardModal: false
         }
     },
     computed: {
@@ -207,13 +212,18 @@ createApp({
             // 残高を0から再計算（検索結果だけの推移として計算）
             let runningBalance = 0;
             const recalculatedTransactions = transactions.map((tx) => {
-                // 現在の取引を適用
-                const currentAmount = tx.type === 'income' ? tx.amount : -tx.amount;
-                runningBalance += currentAmount;
+                // クレジットカード項目は残高計算から除外
+                const isCreditCard = this.selectedCreditCardItems.includes(tx.account);
+                
+                if (!isCreditCard) {
+                    // 現在の取引を残高計算に適用
+                    const currentAmount = tx.type === 'income' ? tx.amount : -tx.amount;
+                    runningBalance += currentAmount;
+                }
 
                 return {
                     ...tx,
-                    balance: runningBalance
+                    balance: isCreditCard ? null : runningBalance // クレジットカードはnullで残高を無効化
                 };
             });
 
@@ -602,6 +612,11 @@ createApp({
             // 項目別収支用資金項目ドロップダウンのクリック外処理
             if (!graphMultiSelect || !event.target.closest('[data-itemized-fund-items]')) {
                 this.showItemizedFundItemDropdown = false;
+            }
+
+            // クレジットカード設定ドロップダウンのクリック外処理
+            if (!graphMultiSelect || !event.target.closest('[data-credit-card-items]')) {
+                this.showCreditCardDropdown = false;
             }
         },
         async loadTransactions() {
@@ -1362,11 +1377,17 @@ createApp({
             }
             // 日付順にソート（古い順）
             txsRaw.sort((a, b) => new Date(a.date) - new Date(b.date));
-            // 残高を再計算
+            // 残高を再計算（クレジットカード項目は除外）
             let runBal = 0;
             const txs = txsRaw.map(tx => {
-                runBal += (tx.type === 'income' ? tx.amount : -tx.amount);
-                return { ...tx, balance: runBal };
+                // クレジットカード項目は残高計算から除外
+                const isCreditCard = this.selectedCreditCardItems.includes(tx.account);
+                
+                if (!isCreditCard) {
+                    runBal += (tx.type === 'income' ? tx.amount : -tx.amount);
+                }
+                
+                return { ...tx, balance: isCreditCard ? null : runBal };
             });
             // データを表示単位で集計
             const grouped = {};
@@ -1522,6 +1543,116 @@ createApp({
             }
 
             this.csvImporting = false;
+        },
+
+        // クレジットカード設定関連メソッド
+        toggleCreditCardDropdown() {
+            this.showCreditCardDropdown = !this.showCreditCardDropdown;
+            this.logMessage('debug', `クレジットカードドロップダウンを${this.showCreditCardDropdown ? '表示' : '非表示'}`, 'credit_card');
+        },
+
+        toggleCreditCardItem(item) {
+            if (this.selectedCreditCardItems.includes(item)) {
+                this.selectedCreditCardItems = this.selectedCreditCardItems.filter(i => i !== item);
+                this.logMessage('debug', `クレジットカード項目を解除: ${item}`, 'credit_card');
+            } else {
+                this.selectedCreditCardItems.push(item);
+                this.logMessage('debug', `クレジットカード項目を選択: ${item}`, 'credit_card');
+            }
+        },
+
+        getCreditCardDisplayText() {
+            if (this.selectedCreditCardItems.length === 0) {
+                return '選択されていません';
+            } else if (this.selectedCreditCardItems.length === 1) {
+                return this.selectedCreditCardItems[0];
+            } else {
+                return `${this.selectedCreditCardItems.length}項目選択済み`;
+            }
+        },
+
+        async loadCreditCardSettings() {
+            try {
+                this.logMessage('debug', 'クレジットカード設定を読み込み中', 'credit_card');
+                
+                const response = await fetch('/api/credit_card_settings', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const creditCardItems = await response.json();
+                    this.selectedCreditCardItems = creditCardItems;
+                    this.logMessage('info', `クレジットカード設定を読み込み: ${creditCardItems.length}項目`, 'credit_card');
+                } else {
+                    const error = await response.json();
+                    this.logMessage('error', `クレジットカード設定読み込み失敗: ${error.error}`, 'credit_card');
+                }
+            } catch (error) {
+                this.logMessage('error', `クレジットカード設定読み込みエラー: ${error.message}`, 'credit_card');
+            }
+        },
+
+        async saveCreditCardSettings() {
+            try {
+                this.creditCardSettingsMessage = null;
+                this.logMessage('info', `クレジットカード設定を保存中: ${this.selectedCreditCardItems.length}項目`, 'credit_card');
+
+                const response = await fetch('/api/credit_card_settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        credit_card_items: this.selectedCreditCardItems
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    this.creditCardSettingsMessage = result.message + '成功しました。';
+                    this.logMessage('info', 'クレジットカード設定保存成功', 'credit_card');
+                    
+                    // 3秒後にメッセージを消す
+                    setTimeout(() => {
+                        this.creditCardSettingsMessage = null;
+                    }, 3000);
+                } else {
+                    this.creditCardSettingsMessage = result.error || '設定の保存に失敗しました。';
+                    this.logMessage('error', `クレジットカード設定保存失敗: ${result.error}`, 'credit_card');
+                }
+            } catch (error) {
+                this.creditCardSettingsMessage = `ネットワークエラー: ${error.message}`;
+                this.logMessage('error', `クレジットカード設定保存エラー: ${error.message}`, 'credit_card');
+            }
+        },
+
+        async resetCreditCardSettings() {
+            try {
+                this.selectedCreditCardItems = [];
+                await this.saveCreditCardSettings();
+                this.logMessage('info', 'クレジットカード設定をクリア', 'credit_card');
+            } catch (error) {
+                this.logMessage('error', `クレジットカード設定クリアエラー: ${error.message}`, 'credit_card');
+            }
+        },
+
+        openCreditCardSettings() {
+            this.showCreditCardModal = true;
+            this.creditCardSettingsMessage = null;
+            this.showCreditCardDropdown = false;
+            this.showMenu = false; // メニューを閉じる
+            this.logMessage('info', 'クレジットカード設定モーダルを表示', 'credit_card');
+        },
+
+        hideCreditCardSettings() {
+            this.showCreditCardModal = false;
+            this.showCreditCardDropdown = false;
+            this.creditCardSettingsMessage = null;
+            this.logMessage('info', 'クレジットカード設定モーダルを非表示', 'credit_card');
         }
     },
     mounted() {
@@ -1531,8 +1662,9 @@ createApp({
         window.addEventListener('resize', this.handleWindowResize);
         // アプリ起動時にAPIからデータを読み込む
         this.loadFundItems().then(() => {
-            // 資金項目データ読み込み完了後に取引データを読み込む
+            // 資金項目データ読み込み完了後に取引データとクレジットカード設定を読み込む
             this.loadTransactions();
+            this.loadCreditCardSettings();
             this.logMessage('info', 'アプリケーションの初期化が完了しました', 'app');
         });
         // 初期状態では項目名は空（資金項目選択時に取得）

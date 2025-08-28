@@ -521,3 +521,77 @@ def _recalculate_balance_for_account(account):
             running_balance -= tx.amount
         tx.balance = running_balance
     db.session.commit()
+
+
+@api_bp.route("/api/credit_card_settings", methods=['GET'])
+@login_required
+def get_credit_card_settings():
+    """クレジットカード設定を取得するAPI"""
+    from flask import current_app
+    import json
+    
+    settings_file = os.path.join(current_app.instance_path, 'credit_card_settings.json')
+    
+    try:
+        if os.path.exists(settings_file):
+            with open(settings_file, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+                current_app.logger.debug(f"クレジットカード設定を取得: {len(settings.get('credit_card_items', []))}件")
+                return jsonify(settings.get('credit_card_items', []))
+        else:
+            current_app.logger.debug("クレジットカード設定ファイルが見つからないため、空配列を返します")
+            return jsonify([])
+            
+    except Exception as e:
+        current_app.logger.error(f"クレジットカード設定の取得でエラー: {str(e)}")
+        return jsonify({'error': 'クレジットカード設定の取得に失敗しました'}), 500
+
+
+@api_bp.route("/api/credit_card_settings", methods=['POST'])
+@login_required
+def save_credit_card_settings():
+    """クレジットカード設定を保存するAPI"""
+    from flask import current_app
+    import json
+    
+    try:
+        data = request.get_json()
+        if not data or 'credit_card_items' not in data:
+            return jsonify({'error': 'クレジットカード項目リストが必要です'}), 400
+            
+        credit_card_items = data['credit_card_items']
+        
+        # 項目リストの検証
+        if not isinstance(credit_card_items, list):
+            return jsonify({'error': 'クレジットカード項目は配列である必要があります'}), 400
+            
+        # 実際に存在する口座項目のみを保存するための検証
+        valid_accounts = {acc[0] for acc in db.session.query(Transaction.account.distinct()).all() if acc[0]}
+        invalid_items = [item for item in credit_card_items if item not in valid_accounts]
+        
+        if invalid_items:
+            current_app.logger.warning(f"存在しない口座項目が指定されました: {invalid_items}")
+            return jsonify({'error': f'存在しない口座項目が指定されました: {", ".join(invalid_items)}'}), 400
+        
+        # 設定ファイルに保存
+        settings_file = os.path.join(current_app.instance_path, 'credit_card_settings.json')
+        
+        # instanceディレクトリが存在しない場合は作成
+        os.makedirs(os.path.dirname(settings_file), exist_ok=True)
+        
+        settings = {'credit_card_items': credit_card_items}
+        
+        with open(settings_file, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+            
+        current_app.logger.info(f"クレジットカード設定を保存しました: {len(credit_card_items)}件")
+        
+        return jsonify({
+            'message': 'クレジットカード設定を保存しました',
+            'credit_card_items': credit_card_items
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"クレジットカード設定の保存でエラー: {str(e)}")
+        return jsonify({'error': 'クレジットカード設定の保存に失敗しました'}), 500
+    
