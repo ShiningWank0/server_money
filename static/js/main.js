@@ -211,11 +211,16 @@ createApp({
 
             // 残高を0から再計算（検索結果だけの推移として計算）
             let runningBalance = 0;
+            
+            // 選択された資金項目が全てクレジットカード項目かチェック
+            const allSelectedAreCredit = this.selectedFundItems.length > 0 && 
+                this.selectedFundItems.every(item => this.selectedCreditCardItems.includes(item));
+            
             const recalculatedTransactions = transactions.map((tx) => {
-                // クレジットカード項目は残高計算から除外
                 const isCreditCard = this.selectedCreditCardItems.includes(tx.account);
                 
-                if (!isCreditCard) {
+                // クレジットカード項目でも、全選択項目がクレジットカードの場合は計算に含める
+                if (!isCreditCard || allSelectedAreCredit) {
                     // 現在の取引を残高計算に適用
                     const currentAmount = tx.type === 'income' ? tx.amount : -tx.amount;
                     runningBalance += currentAmount;
@@ -223,7 +228,7 @@ createApp({
 
                 return {
                     ...tx,
-                    balance: isCreditCard ? null : runningBalance // クレジットカードはnullで残高を無効化
+                    balance: (isCreditCard && !allSelectedAreCredit) ? null : runningBalance
                 };
             });
 
@@ -801,6 +806,18 @@ createApp({
                 filteredTxs = allTxs;
             }
             
+            // クレジットカード項目の処理
+            if (filteredTxs.length > 0) {
+                // 選択された資金項目が全てクレジットカード項目かチェック
+                const allSelectedAreCredit = this.selectedFundItems.length > 0 && 
+                    this.selectedFundItems.every(item => this.selectedCreditCardItems.includes(item));
+                
+                // 通常項目とクレジットカード項目が混在している場合、クレジットカード項目を除外
+                if (!allSelectedAreCredit) {
+                    filteredTxs = filteredTxs.filter(t => !this.selectedCreditCardItems.includes(t.fundItem || t.account));
+                }
+            }
+            
             // 期間選択に基づいてデータをさらにフィルタ
             if (this.ratioDisplayUnit !== 'all') {
                 const selectedDate = this.ratioCurrentDate;
@@ -897,6 +914,18 @@ createApp({
             } else {
                 // 全選択の場合は全て表示
                 filtered = allTxs;
+            }
+            
+            // クレジットカード項目の処理
+            if (filtered.length > 0) {
+                // 選択された資金項目が全てクレジットカード項目かチェック
+                const allSelectedAreCredit = this.selectedFundItems.length > 0 && 
+                    this.selectedFundItems.every(item => this.selectedCreditCardItems.includes(item));
+                
+                // 通常項目とクレジットカード項目が混在している場合、クレジットカード項目を除外
+                if (!allSelectedAreCredit) {
+                    filtered = filtered.filter(t => !this.selectedCreditCardItems.includes(t.fundItem || t.account));
+                }
             }
             
             // 期間選択に基づいてデータをさらにフィルタ
@@ -1377,17 +1406,22 @@ createApp({
             }
             // 日付順にソート（古い順）
             txsRaw.sort((a, b) => new Date(a.date) - new Date(b.date));
-            // 残高を再計算（クレジットカード項目は除外）
+            // 残高を再計算（クレジットカード項目の処理を改善）
             let runBal = 0;
+            
+            // 選択された資金項目が全てクレジットカード項目かチェック
+            const allSelectedAreCredit = this.selectedFundItems.length > 0 && 
+                this.selectedFundItems.every(item => this.selectedCreditCardItems.includes(item));
+            
             const txs = txsRaw.map(tx => {
-                // クレジットカード項目は残高計算から除外
                 const isCreditCard = this.selectedCreditCardItems.includes(tx.account);
                 
-                if (!isCreditCard) {
+                // クレジットカード項目でも、全選択項目がクレジットカードの場合は計算に含める
+                if (!isCreditCard || allSelectedAreCredit) {
                     runBal += (tx.type === 'income' ? tx.amount : -tx.amount);
                 }
                 
-                return { ...tx, balance: isCreditCard ? null : runBal };
+                return { ...tx, balance: (isCreditCard && !allSelectedAreCredit) ? null : runBal };
             });
             // データを表示単位で集計
             const grouped = {};
@@ -1613,7 +1647,7 @@ createApp({
                 const result = await response.json();
 
                 if (response.ok) {
-                    this.creditCardSettingsMessage = result.message + '成功しました。';
+                    this.creditCardSettingsMessage = result.message;
                     this.logMessage('info', 'クレジットカード設定保存成功', 'credit_card');
                     
                     // 3秒後にメッセージを消す
