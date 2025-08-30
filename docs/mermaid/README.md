@@ -60,84 +60,84 @@ graph TD
 graph TD
     %% フロントエンド層
     subgraph Frontend["Frontend Layer"]
-        VUE[Vue.js 3.0 SPA<br/>リアクティブUI]
-        CHART[Chart.js<br/>データ可視化]
-        CSS[Glassmorphism<br/>CSS Design]
-        SESSION[sessionStorage<br/>状態永続化]
-        BALANCE_CHART[残高推移グラフ<br/>NEW フィルタリング対応]
+        VUE["Vue.js 3.0 SPA - リアクティブUI"]
+        CHART["Chart.js - データ可視化"]
+        CSS["Glassmorphism - CSS Design"]
+        SESSION["sessionStorage - 状態永続化"]
+        BALANCE_CHART["残高推移グラフ - NEW フィルタリング対応"]
     end
 
     %% 認証・セキュリティ層
     subgraph Security["Authentication & Security"]
-        LOGIN_PAGE[ログイン画面<br/>login.html]
-        AUTH_SYSTEM[認証システム<br/>bcrypt + Session]
-        LOGIN_GUARD[@login_required<br/>認証デコレータ]
-        IP_LIMIT[IP制限<br/>5回/30分]
+        LOGIN_PAGE["ログイン画面 - login.html"]
+        AUTH_SYSTEM["認証システム - bcrypt + Session"]
+        LOGIN_GUARD["login_required - 認証デコレータ"]
+        IP_LIMIT["IP制限 - 5回/30分"]
     end
 
     %% APIエンドポイント層
     subgraph API["API Endpoints"]
         subgraph AuthAPI["認証API"]
-            LOGIN_API[POST /api/login]
-            LOGOUT_API[POST /api/logout]
-            STATUS_API[GET /api/auth_status]
+            LOGIN_API["POST /api/login"]
+            LOGOUT_API["POST /api/logout"]
+            STATUS_API["GET /api/auth_status"]
         end
 
         subgraph TransactionAPI["取引管理API"]
-            GET_TXN[GET /api/transactions<br/>検索・フィルタ対応]
-            POST_TXN[POST /api/transactions<br/>残高自動計算]
-            PUT_TXN[PUT /api/transactions/id<br/>残高再計算]
-            DELETE_TXN[DELETE /api/transactions/id<br/>残高再計算]
+            GET_TXN["GET /api/transactions - 検索・フィルタ対応"]
+            POST_TXN["POST /api/transactions - 残高自動計算"]
+            PUT_TXN["PUT /api/transactions/id - 残高再計算"]
+            DELETE_TXN["DELETE /api/transactions/id - 残高再計算"]
         end
 
         subgraph DataAPI["データ参照API"]
-            GET_ACCOUNTS[GET /api/accounts<br/>口座一覧]
-            GET_ITEMS[GET /api/items<br/>項目一覧]
-            GET_BALANCE[GET /api/balance_history<br/>残高推移データ]
-            GET_BALANCE_FILTERED[NEW GET /api/balance_history_filtered<br/>CCフィルタリング対応]
+            GET_ACCOUNTS["GET /api/accounts - 口座一覧"]
+            GET_ITEMS["GET /api/items - 項目一覧"]
+            GET_BALANCE["GET /api/balance_history - 残高推移データ"]
+            GET_BALANCE_FILTERED["NEW GET /api/balance_history_filtered - CCフィルタリング対応"]
         end
 
         subgraph CreditCardAPI["NEW クレジットカード設定API"]
-            GET_CC[NEW GET /api/credit_card_settings<br/>CC設定取得]
-            POST_CC[NEW POST /api/credit_card_settings<br/>CC設定保存]
+            GET_CC["NEW GET /api/credit_card_settings - CC設定取得"]
+            POST_CC["NEW POST /api/credit_card_settings - CC設定保存"]
         end
 
         subgraph UtilityAPI["ユーティリティAPI"]
-            BACKUP_CSV[GET /api/backup_csv<br/>CSVエクスポート]
-            IMPORT_CSV[NEW POST /api/import_csv<br/>追加/置換モード対応]
-            LOG_API[POST /api/log<br/>統合ログシステム]
-            DOWNLOAD_LOG[GET /api/download_log<br/>ログダウンロード]
+            BACKUP_CSV["GET /api/backup_csv - CSVエクスポート"]
+            IMPORT_CSV["NEW POST /api/import_csv - 追加/置換モード対応"]
+            LOG_API["POST /api/log - 統合ログシステム"]
+            DOWNLOAD_LOG["GET /api/download_log - ログダウンロード"]
         end
     end
 
     %% ビジネスロジック層
     subgraph Business["Business Logic Layer"]
         subgraph CoreModules["コアモジュール"]
-            APP_PY[app.py<br/>Flaskアプリファクトリ]
-            MODELS_PY[models.py<br/>SQLAlchemy ORM]
-            CONFIG_PY[config.py<br/>設定管理・ログシステム]
-            UTILS_PY[utils.py<br/>ユーティリティ関数]
-            AUTH_PY[auth.py<br/>認証システム]
+            APP_PY["app.py - Flaskアプリファクトリ"]
+            MODELS_PY["models.py - SQLAlchemy ORM"]
+            CONFIG_PY["config.py - 設定管理・ログシステム"]
+            UTILS_PY["utils.py - ユーティリティ関数"]
+            AUTH_PY["auth.py - 認証システム"]
         end
 
         subgraph Routes["Blueprintルート"]
-            AUTH_ROUTES[auth_routes.py<br/>認証ルート]
-            API_ROUTES[api_routes.py<br/>メインAPIロジック]
-            MAIN_ROUTES[main_routes.py<br/>ページルート]
+            AUTH_ROUTES["auth_routes.py - 認証ルート"]
+            API_ROUTES["api_routes.py - メインAPIロジック"]
+            MAIN_ROUTES["main_routes.py - ページルート"]
         end
     end
 
     %% データ永続化層
     subgraph Data["Data Persistence Layer"]
         subgraph Database["データベース"]
-            SQLITE[(SQLite<br/>money_tracker.db)]
-            TXN_TABLE[Transactionsテーブル<br/>id, account, date, item<br/>type, amount, balance]
+            SQLITE["SQLite - money_tracker.db"]
+            TXN_TABLE["Transactionsテーブル - id, account, date, item, type, amount, balance"]
         end
 
         subgraph FileStorage["ファイルストレージ"]
-            CC_JSON[NEW credit_card_settings.json<br/>CCアイテム設定]
-            LOG_FILES[ログファイル<br/>10MB x 5 ローテーション]
-            BACKUP_FILES[CSVバックアップ<br/>最新3件保持]
+            CC_JSON["NEW credit_card_settings.json - CCアイテム設定"]
+            LOG_FILES["ログファイル - 10MB x 5 ローテーション"]
+            BACKUP_FILES["CSVバックアップ - 最新3件保持"]
         end
     end
 
@@ -183,76 +183,76 @@ graph TD
 graph TD
     %% フロントエンド層
     subgraph Frontend["Frontend Layer"]
-        VUE[Vue.js 3.0 SPA<br/>リアクティブUI]
-        CHART[Chart.js<br/>データ可視化]
-        CSS[Glassmorphism<br/>CSS Design]
-        SESSION[sessionStorage<br/>状態永続化]
-        LOG_JS[NEW 統合ログシステム<br/>JS → Python]
+        VUE["Vue.js 3.0 SPA - リアクティブUI"]
+        CHART["Chart.js - データ可視化"]
+        CSS["Glassmorphism - CSS Design"]
+        SESSION["sessionStorage - 状態永続化"]
+        LOG_JS["NEW 統合ログシステム - JS → Python"]
     end
 
     %% 認証・セキュリティ層
     subgraph Security["Authentication & Security"]
-        LOGIN_PAGE[ログイン画面<br/>login.html]
-        AUTH_SYSTEM[認証システム<br/>bcrypt + Session]
-        LOGIN_GUARD[@login_required<br/>認証デコレータ]
-        IP_LIMIT[IP制限<br/>5回/30分]
+        LOGIN_PAGE["ログイン画面 - login.html"]
+        AUTH_SYSTEM["認証システム - bcrypt + Session"]
+        LOGIN_GUARD["login_required - 認証デコレータ"]
+        IP_LIMIT["IP制限 - 5回/30分"]
     end
 
     %% APIエンドポイント層
     subgraph API["API Endpoints"]
         subgraph AuthAPI["認証API"]
-            LOGIN_API[POST /api/login]
-            LOGOUT_API[POST /api/logout]
-            STATUS_API[GET /api/auth_status]
+            LOGIN_API["POST /api/login"]
+            LOGOUT_API["POST /api/logout"]
+            STATUS_API["GET /api/auth_status"]
         end
 
         subgraph TransactionAPI["取引管理API"]
-            GET_TXN[GET /api/transactions<br/>検索・フィルタ対応]
-            POST_TXN[POST /api/transactions<br/>残高自動計算]
-            PUT_TXN[PUT /api/transactions/id<br/>残高再計算]
-            DELETE_TXN[DELETE /api/transactions/id<br/>残高再計算]
+            GET_TXN["GET /api/transactions - 検索・フィルタ対応"]
+            POST_TXN["POST /api/transactions - 残高自動計算"]
+            PUT_TXN["PUT /api/transactions/id - 残高再計算"]
+            DELETE_TXN["DELETE /api/transactions/id - 残高再計算"]
         end
 
         subgraph DataAPI["データ参照API"]
-            GET_ACCOUNTS[GET /api/accounts<br/>口座一覧]
-            GET_ITEMS[GET /api/items<br/>項目一覧]
-            GET_BALANCE[GET /api/balance_history<br/>残高推移データ]
+            GET_ACCOUNTS["GET /api/accounts - 口座一覧"]
+            GET_ITEMS["GET /api/items - 項目一覧"]
+            GET_BALANCE["GET /api/balance_history - 残高推移データ"]
         end
 
         subgraph UtilityAPI["ユーティリティAPI"]
-            BACKUP_CSV[GET /api/backup_csv<br/>CSVエクスポート]
-            LOG_API[NEW POST /api/log<br/>JS統合ログ受信]
-            DOWNLOAD_LOG[GET /api/download_log<br/>ログダウンロード]
+            BACKUP_CSV["GET /api/backup_csv - CSVエクスポート"]
+            LOG_API["NEW POST /api/log - JS統合ログ受信"]
+            DOWNLOAD_LOG["GET /api/download_log - ログダウンロード"]
         end
     end
 
     %% ビジネスロジック層
     subgraph Business["Business Logic Layer"]
         subgraph CoreModules["コアモジュール"]
-            APP_PY[app.py<br/>Flaskアプリファクトリ]
-            MODELS_PY[models.py<br/>SQLAlchemy ORM]
-            CONFIG_PY[config.py<br/>NEW 統合ログ設定]
-            UTILS_PY[utils.py<br/>ユーティリティ関数]
-            AUTH_PY[auth.py<br/>認証システム]
+            APP_PY["app.py - Flaskアプリファクトリ"]
+            MODELS_PY["models.py - SQLAlchemy ORM"]
+            CONFIG_PY["config.py - NEW 統合ログ設定"]
+            UTILS_PY["utils.py - ユーティリティ関数"]
+            AUTH_PY["auth.py - 認証システム"]
         end
 
         subgraph Routes["Blueprintルート"]
-            AUTH_ROUTES[auth_routes.py<br/>認証ルート]
-            API_ROUTES[api_routes.py<br/>メインAPIロジック]
-            MAIN_ROUTES[main_routes.py<br/>ページルート]
+            AUTH_ROUTES["auth_routes.py - 認証ルート"]
+            API_ROUTES["api_routes.py - メインAPIロジック"]
+            MAIN_ROUTES["main_routes.py - ページルート"]
         end
     end
 
     %% データ永続化層
     subgraph Data["Data Persistence Layer"]
         subgraph Database["データベース"]
-            SQLITE[(SQLite<br/>money_tracker.db)]
-            TXN_TABLE[Transactionsテーブル<br/>id, account, date, item<br/>type, amount, balance]
+            SQLITE["SQLite - money_tracker.db"]
+            TXN_TABLE["Transactionsテーブル - id, account, date, item, type, amount, balance"]
         end
 
         subgraph FileStorage["ファイルストレージ"]
-            LOG_FILES[NEW 統合ログファイル<br/>JS+Python統合<br/>10MB x 5 ローテーション]
-            BACKUP_FILES[CSVバックアップ<br/>最新3件保持]
+            LOG_FILES["NEW 統合ログファイル - JS+Python統合 - 10MB x 5 ローテーション"]
+            BACKUP_FILES["CSVバックアップ - 最新3件保持"]
         end
     end
 
@@ -295,75 +295,75 @@ graph TD
 graph TD
     %% フロントエンド層
     subgraph Frontend["Frontend Layer"]
-        VUE[NEW Vue.js 3.0 本番ビルド<br/>パフォーマンス最適化]
-        CHART[Chart.js<br/>NEW 動的サイジング対応]
-        CSS[Glassmorphism<br/>NEW z-index管理強化]
-        SESSION[NEW sessionStorage<br/>選択状態永続化]
-        FAVICON[NEW SVGファビコン<br/>404対策]
+        VUE["NEW Vue.js 3.0 本番ビルド - パフォーマンス最適化"]
+        CHART["Chart.js - NEW 動的サイジング対応"]
+        CSS["Glassmorphism - NEW z-index管理強化"]
+        SESSION["NEW sessionStorage - 選択状態永続化"]
+        FAVICON["NEW SVGファビコン - 404対策"]
     end
 
     %% 認証・セキュリティ層
     subgraph Security["Authentication & Security"]
-        LOGIN_PAGE[ログイン画面<br/>login.html]
-        AUTH_SYSTEM[認証システム<br/>bcrypt + Session]
-        LOGIN_GUARD[@login_required<br/>認証デコレータ]
-        IP_LIMIT[IP制限<br/>5回/30分]
+        LOGIN_PAGE["ログイン画面 - login.html"]
+        AUTH_SYSTEM["認証システム - bcrypt + Session"]
+        LOGIN_GUARD["login_required - 認証デコレータ"]
+        IP_LIMIT["IP制限 - 5回/30分"]
     end
 
     %% APIエンドポイント層
     subgraph API["API Endpoints"]
         subgraph AuthAPI["認証API"]
-            LOGIN_API[POST /api/login]
-            LOGOUT_API[POST /api/logout]
-            STATUS_API[GET /api/auth_status]
+            LOGIN_API["POST /api/login"]
+            LOGOUT_API["POST /api/logout"]
+            STATUS_API["GET /api/auth_status"]
         end
 
         subgraph TransactionAPI["取引管理API"]
-            GET_TXN[GET /api/transactions<br/>検索・フィルタ対応]
-            POST_TXN[POST /api/transactions<br/>残高自動計算]
-            PUT_TXN[PUT /api/transactions/id<br/>残高再計算]
-            DELETE_TXN[DELETE /api/transactions/id<br/>残高再計算]
+            GET_TXN["GET /api/transactions - 検索・フィルタ対応"]
+            POST_TXN["POST /api/transactions - 残高自動計算"]
+            PUT_TXN["PUT /api/transactions/id - 残高再計算"]
+            DELETE_TXN["DELETE /api/transactions/id - 残高再計算"]
         end
 
         subgraph DataAPI["データ参照API"]
-            GET_ACCOUNTS[GET /api/accounts<br/>口座一覧]
-            GET_ITEMS[GET /api/items<br/>項目一覧]
-            GET_BALANCE[GET /api/balance_history<br/>残高推移データ]
+            GET_ACCOUNTS["GET /api/accounts - 口座一覧"]
+            GET_ITEMS["GET /api/items - 項目一覧"]
+            GET_BALANCE["GET /api/balance_history - 残高推移データ"]
         end
 
         subgraph UtilityAPI["ユーティリティAPI"]
-            BACKUP_CSV[GET /api/backup_csv<br/>CSVエクスポート]
-            DOWNLOAD_LOG[GET /api/download_log<br/>ログダウンロード]
+            BACKUP_CSV["GET /api/backup_csv - CSVエクスポート"]
+            DOWNLOAD_LOG["GET /api/download_log - ログダウンロード"]
         end
     end
 
     %% ビジネスロジック層
     subgraph Business["Business Logic Layer"]
         subgraph CoreModules["コアモジュール"]
-            APP_PY[app.py<br/>Flaskアプリファクトリ]
-            MODELS_PY[models.py<br/>SQLAlchemy ORM]
-            CONFIG_PY[config.py<br/>設定管理・ログシステム]
-            UTILS_PY[utils.py<br/>ユーティリティ関数]
-            AUTH_PY[auth.py<br/>認証システム]
+            APP_PY["app.py - Flaskアプリファクトリ"]
+            MODELS_PY["models.py - SQLAlchemy ORM"]
+            CONFIG_PY["config.py - 設定管理・ログシステム"]
+            UTILS_PY["utils.py - ユーティリティ関数"]
+            AUTH_PY["auth.py - 認証システム"]
         end
 
         subgraph Routes["Blueprintルート"]
-            AUTH_ROUTES[auth_routes.py<br/>認証ルート]
-            API_ROUTES[api_routes.py<br/>メインAPIロジック]
-            MAIN_ROUTES[main_routes.py<br/>ページルート]
+            AUTH_ROUTES["auth_routes.py - 認証ルート"]
+            API_ROUTES["api_routes.py - メインAPIロジック"]
+            MAIN_ROUTES["main_routes.py - ページルート"]
         end
     end
 
     %% データ永続化層
     subgraph Data["Data Persistence Layer"]
         subgraph Database["データベース"]
-            SQLITE[(SQLite<br/>money_tracker.db)]
-            TXN_TABLE[Transactionsテーブル<br/>id, account, date, item<br/>type, amount, balance]
+            SQLITE["SQLite - money_tracker.db"]
+            TXN_TABLE["Transactionsテーブル - id, account, date, item, type, amount, balance"]
         end
 
         subgraph FileStorage["ファイルストレージ"]
-            LOG_FILES[ログファイル<br/>ローテーション機能]
-            BACKUP_FILES[CSVバックアップ<br/>最新3件保持]
+            LOG_FILES["ログファイル - ローテーション機能"]
+            BACKUP_FILES["CSVバックアップ - 最新3件保持"]
         end
     end
 
