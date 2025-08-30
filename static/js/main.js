@@ -1375,7 +1375,7 @@ createApp({
                 alert('ネットワークエラーが発生しました');
             }
         },
-        renderBalanceChart() {
+        async renderBalanceChart() {
             // 既存のグラフがあれば破棄
             if (this._balanceChartInstance) {
                 this._balanceChartInstance.destroy();
@@ -1392,93 +1392,230 @@ createApp({
                 canvas.style.width = w + 'px';
                 canvas.style.height = h + 'px';
             }
-            // 資金項目フィルタリングと残高再計算（統一された選択を使用）
-            let txsRaw;
+            
+            // 選択された資金項目が空の場合は空のグラフを表示
             if (this.selectedFundItems.length === 0) {
-                // 何も選択されていない場合は空のデータ
-                txsRaw = [];
-            } else if (this.selectedFundItems.length < this.actualFundItems.length) {
-                // 部分選択の場合のみフィルタリング
-                txsRaw = this.transactions.filter(tx => this.selectedFundItems.includes(tx.fundItem || tx.account));
-            } else {
-                // 全選択の場合は全て表示
-                txsRaw = [...this.transactions];
+                const ctx = canvas.getContext('2d');
+                this._balanceChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: '残高',
+                            data: [],
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            fill: true,
+                            tension: 0.2,
+                            pointRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            title: { display: false }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: this.graphDisplayUnit==='month' ? '年月' : (this.graphDisplayUnit==='year' ? '年' : '日付') },
+                                grid: { display: true }
+                            },
+                            y: { 
+                                title: { display: true, text: '残高(円)' }, 
+                                beginAtZero: true,
+                                grid: { display: true }
+                            }
+                        },
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
+                        }
+                    }
+                });
+                return;
             }
-            // 日付順にソート（古い順）
-            txsRaw.sort((a, b) => new Date(a.date) - new Date(b.date));
-            // 残高を再計算（クレジットカード項目の処理を改善）
-            let runBal = 0;
-            
-            // 選択された資金項目が全てクレジットカード項目かチェック
-            const allSelectedAreCredit = this.selectedFundItems.length > 0 && 
-                this.selectedFundItems.every(item => this.selectedCreditCardItems.includes(item));
-            
-            const txs = txsRaw.map(tx => {
-                const isCreditCard = this.selectedCreditCardItems.includes(tx.account);
+
+            try {
+                // 新しいAPIから残高履歴データを取得
+                const params = new URLSearchParams();
+                this.selectedFundItems.forEach(item => {
+                    params.append('fund_items', item);
+                });
                 
-                // クレジットカード項目でも、全選択項目がクレジットカードの場合は計算に含める
-                if (!isCreditCard || allSelectedAreCredit) {
-                    runBal += (tx.type === 'income' ? tx.amount : -tx.amount);
+                const response = await fetch(`/api/balance_history_filtered?${params}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('残高履歴データの取得に失敗しました');
                 }
                 
-                return { ...tx, balance: (isCreditCard && !allSelectedAreCredit) ? null : runBal };
-            });
-            // データを表示単位で集計
-            const grouped = {};
-            txs.forEach(tx => {
-                const d = new Date(tx.date);
-                let key;
-                if (this.graphDisplayUnit === 'month') {
-                    key = `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}`;
-                } else if (this.graphDisplayUnit === 'year') {
-                    key = `${d.getFullYear()}`;
-                } else {
-                    key = `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)}`;
+                const balanceData = await response.json();
+                this.logMessage('debug', `残高履歴グラフ用データを取得: ${balanceData.accounts?.length || 0}口座, ${balanceData.dates?.length || 0}日分`, 'balance_chart');
+                
+                // データが空の場合は空のグラフを表示
+                if (!balanceData.dates || balanceData.dates.length === 0) {
+                    const ctx = canvas.getContext('2d');
+                    this._balanceChartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: '残高',
+                                data: [],
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                                fill: true,
+                                tension: 0.2,
+                                pointRadius: 2
+                            }]
+                        },
+                        options: {
+                            responsive: false,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                title: { display: false }
+                            },
+                            scales: {
+                                x: { 
+                                    title: { display: true, text: this.graphDisplayUnit==='month' ? '年月' : (this.graphDisplayUnit==='year' ? '年' : '日付') },
+                                    grid: { display: true }
+                                },
+                                y: { 
+                                    title: { display: true, text: '残高(円)' }, 
+                                    beginAtZero: true,
+                                    grid: { display: true }
+                                }
+                            },
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            }
+                        }
+                    });
+                    return;
                 }
-                // 同じキーの場合は最新バランスを上書き
-                grouped[key] = tx.balance;
-            });
-            const labels = Object.keys(grouped);
-            const data = labels.map(label => grouped[label]);
-             const ctx = canvas.getContext('2d');
-             this._balanceChartInstance = new Chart(ctx, {
-                 type: 'line',
-                 data: {
-                     labels: labels,
-                     datasets: [{
-                         label: '残高',
-                         data: data,
-                         borderColor: 'rgba(54, 162, 235, 1)',
-                         backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                         fill: true,
-                         tension: 0.2,
-                         pointRadius: 2
-                     }]
-                 },
-                 options: {
-                     responsive: false,
-                     maintainAspectRatio: false,
-                     plugins: {
-                         legend: { display: false },
-                         title: { display: false }
-                     },
-                     scales: {
-                         x: { 
-                             title: { display: true, text: this.graphDisplayUnit==='month' ? '年月' : this.graphDisplayUnit==='year' ? '年' : '日付' },
-                             grid: { display: true }
-                         },
-                         y: { 
-                             title: { display: true, text: '残高(円)' }, 
-                             beginAtZero: true,
-                             grid: { display: true }
-                         }
-                     },
-                     interaction: {
-                         intersect: false,
-                         mode: 'index'
-                     }
-                 }
-             });
+
+                // 各口座の残高を日付別に合計
+                const dailyTotalBalances = {};
+                balanceData.dates.forEach((date, index) => {
+                    let totalBalance = 0;
+                    balanceData.accounts.forEach(account => {
+                        if (balanceData.balances[account] && balanceData.balances[account][index] !== undefined) {
+                            totalBalance += balanceData.balances[account][index] || 0;
+                        }
+                    });
+                    dailyTotalBalances[date] = totalBalance;
+                });
+
+                // データを表示単位で集計
+                const grouped = {};
+                Object.entries(dailyTotalBalances).forEach(([dateStr, balance]) => {
+                    const d = new Date(dateStr);
+                    let key;
+                    if (this.graphDisplayUnit === 'month') {
+                        key = `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}`;
+                    } else if (this.graphDisplayUnit === 'year') {
+                        key = `${d.getFullYear()}`;
+                    } else {
+                        key = `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)}`;
+                    }
+                    // 同じキーの場合は最新バランスを上書き
+                    grouped[key] = balance;
+                });
+
+                const labels = Object.keys(grouped);
+                const data = labels.map(label => grouped[label]);
+                
+                const ctx = canvas.getContext('2d');
+                this._balanceChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '残高',
+                            data: data,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            fill: true,
+                            tension: 0.2,
+                            pointRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            title: { display: false }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: this.graphDisplayUnit==='month' ? '年月' : (this.graphDisplayUnit==='year' ? '年' : '日付') },
+                                grid: { display: true }
+                            },
+                            y: { 
+                                title: { display: true, text: '残高(円)' }, 
+                                beginAtZero: true,
+                                grid: { display: true }
+                            }
+                        },
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
+                        }
+                    }
+                });
+                
+            } catch (error) {
+                this.logMessage('error', `残高履歴グラフの描画でエラー: ${error.message}`, 'balance_chart');
+                // エラーの場合は空のグラフを表示
+                const ctx = canvas.getContext('2d');
+                this._balanceChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: '残高',
+                            data: [],
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            fill: true,
+                            tension: 0.2,
+                            pointRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            title: { display: false }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: this.graphDisplayUnit==='month' ? '年月' : (this.graphDisplayUnit==='year' ? '年' : '日付') },
+                                grid: { display: true }
+                            },
+                            y: { 
+                                title: { display: true, text: '残高(円)' }, 
+                                beginAtZero: true,
+                                grid: { display: true }
+                            }
+                        },
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
+                        }
+                    }
+                });
+            }
         },
 
         // CSVインポート関連メソッド

@@ -295,6 +295,98 @@ def get_balance_history():
         current_app.logger.error(f"残高履歴の取得に失敗しました: {str(e)}", exc_info=True)
         return jsonify({'error': f'残高履歴の取得に失敗しました: {str(e)}'}), 500
 
+@api_bp.route("/api/balance_history_filtered")
+@login_required
+def get_balance_history_filtered():
+    """残高推移グラフ専用：クレジットカード項目のフィルタリングを考慮した残高推移データを取得するAPI"""
+    from flask import current_app
+    import json
+    
+    current_app.logger.debug("フィルタリング残高履歴を取得中")
+    
+    try:
+        # 選択された資金項目を取得（クエリパラメータから）
+        selected_fund_items = request.args.getlist('fund_items')
+        
+        if not selected_fund_items:
+            current_app.logger.debug("選択された資金項目がありません")
+            return jsonify({'accounts': [], 'dates': [], 'balances': {}})
+        
+        # クレジットカード設定を取得
+        settings_file = os.path.join(current_app.instance_path, 'credit_card_settings.json')
+        credit_card_items = []
+        if os.path.exists(settings_file):
+            with open(settings_file, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+                credit_card_items = settings.get('credit_card_items', [])
+        
+        # 選択された資金項目が全てクレジットカード項目かチェック
+        all_selected_are_credit = len(selected_fund_items) > 0 and all(item in credit_card_items for item in selected_fund_items)
+        
+        # フィルタリング条件を決定
+        if all_selected_are_credit:
+            # 全てクレジットカード項目の場合：選択された項目のみ取得
+            transactions = Transaction.query.filter(
+                Transaction.account.in_(selected_fund_items)
+            ).order_by(Transaction.date, Transaction.id).all()
+        else:
+            # 混在している場合：クレジットカード項目を除外して取得
+            non_credit_selected = [item for item in selected_fund_items if item not in credit_card_items]
+            if not non_credit_selected:
+                # クレジットカード項目のみが選択されている場合（混在ではない）
+                transactions = Transaction.query.filter(
+                    Transaction.account.in_(selected_fund_items)
+                ).order_by(Transaction.date, Transaction.id).all()
+            else:
+                # 混在している場合：非クレジットカード項目のみを取得
+                transactions = Transaction.query.filter(
+                    Transaction.account.in_(non_credit_selected)
+                ).order_by(Transaction.date, Transaction.id).all()
+        
+        if not transactions:
+            current_app.logger.debug("フィルタリング後の取引データが存在しません")
+            return jsonify({'accounts': [], 'dates': [], 'balances': {}})
+        
+        # 口座ごとに残高推移を計算
+        account_balances = {}
+        all_dates = set()
+        
+        for transaction in transactions:
+            account = transaction.account
+            date_str = transaction.date.strftime('%Y-%m-%d')
+            
+            if account not in account_balances:
+                account_balances[account] = {}
+            
+            account_balances[account][date_str] = transaction.balance
+            all_dates.add(date_str)
+        
+        # 日付を昇順でソート
+        sorted_dates = sorted(list(all_dates))
+        
+        # 各口座の残高データを日付順に整理（データがない日は前の残高を使用）
+        result_balances = {}
+        for account in account_balances:
+            result_balances[account] = []
+            last_balance = 0
+            
+            for date in sorted_dates:
+                if date in account_balances[account]:
+                    last_balance = account_balances[account][date]
+                result_balances[account].append(last_balance)
+        
+        current_app.logger.debug(f"フィルタリング残高履歴取得完了: {len(account_balances)}口座, {len(sorted_dates)}日分")
+        
+        return jsonify({
+            'accounts': list(account_balances.keys()),
+            'dates': sorted_dates,
+            'balances': result_balances
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"フィルタリング残高履歴の取得に失敗しました: {str(e)}", exc_info=True)
+        return jsonify({'error': f'フィルタリング残高履歴の取得に失敗しました: {str(e)}'}), 500
+
 @api_bp.route("/api/backup_csv")
 @login_required
 def backup_to_csv():
