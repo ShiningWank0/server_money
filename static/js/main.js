@@ -1376,6 +1376,10 @@ createApp({
             }
         },
         async renderBalanceChart() {
+            // 残高推移グラフの描画処理（クレジットカード項目フィルタリング対応）
+            // 新しいAPI /api/balance_history_filtered を使用して、混在選択時の線途切れ問題を解決
+            // 非同期処理でデータを取得し、適切なエラーハンドリングを実装
+            
             // 既存のグラフがあれば破棄
             if (this._balanceChartInstance) {
                 this._balanceChartInstance.destroy();
@@ -1438,7 +1442,9 @@ createApp({
             }
 
             try {
-                // 新しいAPIから残高履歴データを取得
+                // クレジットカード項目フィルタリング対応API から残高履歴データを取得
+                // /api/balance_history_filtered：選択された資金項目に応じて、
+                // クレジットカード項目の混在時は適切にフィルタリングされたデータを返す
                 const params = new URLSearchParams();
                 this.selectedFundItems.forEach(item => {
                     params.append('fund_items', item);
@@ -1502,7 +1508,8 @@ createApp({
                     return;
                 }
 
-                // 各口座の残高を日付別に合計
+                // フィルタリングされた各口座の残高を日付別に合計
+                // 新しいAPIによりクレジットカード項目が適切にフィルタリング済み
                 const dailyTotalBalances = {};
                 balanceData.dates.forEach((date, index) => {
                     let totalBalance = 0;
@@ -1514,7 +1521,7 @@ createApp({
                     dailyTotalBalances[date] = totalBalance;
                 });
 
-                // データを表示単位で集計
+                // データを表示単位（日/月/年）で集計
                 const grouped = {};
                 Object.entries(dailyTotalBalances).forEach(([dateStr, balance]) => {
                     const d = new Date(dateStr);
