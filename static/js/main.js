@@ -343,6 +343,10 @@ createApp({
             }
         },
         formatCurrency(amount) {
+            // null または undefined の場合は 0 として扱う
+            if (amount == null) {
+                return '¥0';
+            }
             return '¥' + amount.toLocaleString();
         },
         formatDateTime(dateTimeString) {
@@ -365,6 +369,10 @@ createApp({
             return type === 'income' ? 'amount-input-income' : 'amount-input-expense';
         },
         formatAmount(amount, type) {
+            // null または undefined の場合は 0 として扱う
+            if (amount == null) {
+                return type === 'income' ? '+0' : '-0';
+            }
             const formattedAmount = amount.toLocaleString();
             return type === 'income' ? `+${formattedAmount}` : `-${formattedAmount}`;
         },
