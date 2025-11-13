@@ -240,7 +240,15 @@ createApp({
                 return 0;
             }
             // 最新の残高を返す（日付順ソート済みなので最後の要素）
-            return recalculatedTransactions[recalculatedTransactions.length - 1].balance;
+            // ただし、balance が null の場合（クレジットカード項目）は、
+            // 最後の非null残高を探す
+            for (let i = recalculatedTransactions.length - 1; i >= 0; i--) {
+                if (recalculatedTransactions[i].balance !== null) {
+                    return recalculatedTransactions[i].balance;
+                }
+            }
+            // 全てがクレジットカード項目の場合は0を返す
+            return 0;
         },
         sortedTransactions() {
             const transactionsToDisplay = [...this.transactionsWithRecalculatedBalance];
